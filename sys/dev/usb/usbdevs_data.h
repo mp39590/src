@@ -11774,6 +11774,10 @@ const struct usb_known_product usb_known_products[] = {
 	    "UB500",
 	},
 	{
+	    USB_VENDOR_TPLINK, USB_PRODUCT_TPLINK_RTL8822BU,
+	    "RTL8822BU",
+	},
+	{
 	    USB_VENDOR_TREK, USB_PRODUCT_TREK_THUMBDRIVE,
 	    "ThumbDrive",
 	},
