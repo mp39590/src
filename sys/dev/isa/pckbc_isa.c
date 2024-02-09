@@ -140,7 +140,7 @@ pckbc_isa_attach(struct device *parent, struct device *self, void *aux)
 
 	for (slot = 0; slot < PCKBC_NSLOTS; slot++) {
 		rv = isa_intr_establish(ia->ia_ic, ia->ipa_irq[slot].num,
-		    IST_EDGE, IPL_TTY, pckbcintr, sc, sc->sc_dv.dv_xname);
+		    IST_LEVEL, IPL_TTY, pckbcintr, sc, sc->sc_dv.dv_xname);
 		if (rv == NULL) {
 			printf("%s: unable to establish interrupt for irq %d\n",
 			    sc->sc_dv.dv_xname, ia->ipa_irq[slot].num);
