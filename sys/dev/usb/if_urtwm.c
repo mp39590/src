@@ -1889,13 +1889,43 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 
 	usb_init_task(&sc->sc_task, urtwm_task, sc, USB_TASK_TYPE_GENERIC);
 
-	if ((ret = rtw88_chip_parameter_setup(rtwdev))) {
+//	ret = rtw_usb_alloc_rx_bufs(rtwusb);
+//	if (ret)
+//		goto err_release_hw;
+//
+//	// TODO - ATTENTION - some flags are set here
+//	ret = rtw_core_init(rtwdev);
+//	if (ret)
+//		goto err_free_rx_bufs;
+
+	// TODO - setup usb before downloading firmware
+//	ret = rtw_usb_intf_init(rtwdev, intf);
+//	if (ret) {
+//		rtw_err(rtwdev, "failed to init USB interface\n");
+//		goto err_deinit_core;
+//	}
+//
+//	ret = rtw_usb_init_tx(rtwdev);
+//	if (ret) {
+//		rtw_err(rtwdev, "failed to init USB TX\n");
+//		goto err_destroy_usb;
+//	}
+//
+//	ret = rtw_usb_init_rx(rtwdev);
+//	if (ret) {
+//		rtw_err(rtwdev, "failed to init USB RX\n");
+//		goto err_destroy_txwq;
+//	}
+
+	ret = rtw88_chip_parameter_setup(rtwdev);
+	if (ret) {
 		printf("%s: %s: failed to setup chip parameters, error=%i\n",
 		    sc->sc_pdev->dv_xname, __func__, ret);
 		return;
 	}
 
-//	if ((ret = rtw88_chip_efuse_info_setup(rtwdev))) {
+//	ret = rtw88_chip_efuse_info_setup(rtwdev);
+//	if (ret) {
 //		printf("%s: %s: failed to setup chip efuse info, error=%i\n",
 //		    sc->sc_pdev->dv_xname, __func__, ret);
 //		return;
