@@ -42,12 +42,18 @@
 
 /* -------------------------------------------------------------------------- */
 
+
+enum rtw88_wlan_cpu {
+	RTW88_WCPU_11AC,
+	RTW88_WCPU_11N,
+};
+
 struct rtw88_chip_info {
 //	struct rtw_chip_ops *ops;
 //	uint8_t id;
 //
-//	const char *fw_name;
-//	enum rtw_wlan_cpu wlan_cpu;
+	const char *fw_name;
+	enum rtw88_wlan_cpu wlan_cpu;
 //	uint8_t tx_pkt_desc_sz;
 //	uint8_t tx_buf_desc_sz;
 //	uint8_t rx_pkt_desc_sz;
@@ -162,8 +168,8 @@ struct rtw88_chip_info {
 const struct rtw88_chip_info rtw8822b_hw_spec = {
 //	.ops = &rtw8822b_ops,
 //	.id = RTW_CHIP_TYPE_8822B,
-//	.fw_name = "rtw88/rtw8822b_fw.bin",
-//	.wlan_cpu = RTW_WCPU_11AC,
+	.fw_name = "rtw88/rtw8822b_fw.bin",
+	.wlan_cpu = RTW88_WCPU_11AC,
 //	.tx_pkt_desc_sz = 48,
 //	.tx_buf_desc_sz = 16,
 //	.rx_pkt_desc_sz = 24,
@@ -341,6 +347,7 @@ enum rtw88_hci_type {
 };
 
 struct urtwm_softc;
+struct rtw88_dev;
 
 /* ops for PCI, USB and SDIO */
 struct rtw88_hci_ops {
@@ -349,7 +356,7 @@ struct rtw88_hci_ops {
 //	    struct sk_buff *skb);
 //	void (*tx_kick_off)(struct rtw88_dev *rtwdev);
 //	void (*flush_queues)(struct rtw88_dev *rtwdev, u32 queues, bool drop);
-//	int (*setup)(struct rtw88_dev *rtwdev);
+	int (*setup)(struct rtw88_dev *rtwdev);
 //	int (*start)(struct rtw88_dev *rtwdev);
 //	void (*stop)(struct rtw88_dev *rtwdev);
 //	void (*deep_ps)(struct rtw88_dev *rtwdev, bool enter);
@@ -361,7 +368,7 @@ struct rtw88_hci_ops {
 
 //	uint8_t (*read8)(struct urtwm_softc *sc, uint32_t addr);
 //	uint16_t (*read16)(struct urtwm_softc *sc, uint32_t addr);
-	uint32_t (*read32)(struct urtwm_softc *sc, uint16_t addr);
+	uint32_t (*read32)(struct rtw88_dev *rtwdev, uint16_t addr);
 //	void (*write8)(struct urtwm_softc *sc, uint32_t addr, uint8_t val);
 //	void (*write16)(struct urtwm_softc *sc, uint32_t addr, uint16_t val);
 //	void (*write32)(struct urtwm_softc *sc, uint32_t addr, uint32_t val);
@@ -444,6 +451,7 @@ struct rtw88_dev {
 //	struct device *dev;
 //
 	struct rtw88_hci hci;
+	void	*cookie;
 //
 //	struct rtw_hw_scan_info scan_info;
 	const struct rtw88_chip_info *chip;
@@ -519,25 +527,33 @@ struct rtw88_dev {
 //	uint8_t priv[] __aligned(sizeof(void *));
 };
 
+struct rtw88_softc {
+	struct rtw88_dev		rtw_dev;
+};
+
 struct urtwm_softc {
 	struct device			*sc_pdev;
 	struct ieee80211com		sc_ic;
+	struct rtw88_softc		sc_sc;
 
 	struct usbd_device		*sc_udev;
 	struct usbd_interface		*sc_iface;
 	struct usb_task			sc_task;
-
-	struct rtw88_dev		rtw_dev;
-
-	/* from rtw88_hci */
-//	uint32_t			rpwm_addr;
-//	uint32_t			cpwm_addr;
-
-	/* from rtw88_hal */
-//	uint32_t			chip_version;
 };
 
 /* -------------------------------------------------------------------------- */
+
+
+inline int rtw88_chip_wcpu_11n(struct rtw88_dev *rtwdev)
+{
+	return rtwdev->chip->wlan_cpu == RTW88_WCPU_11N;
+}
+
+inline int rtw88_chip_wcpu_11ac(struct rtw88_dev *rtwdev)
+{
+	return rtwdev->chip->wlan_cpu == RTW88_WCPU_11AC;
+}
+
 
 inline enum rtw88_hci_type rtw88_hci_type(struct rtw88_dev *rtwdev)
 {
@@ -545,14 +561,23 @@ inline enum rtw88_hci_type rtw88_hci_type(struct rtw88_dev *rtwdev)
 }
 
 uint32_t
-rtw88_read_4(struct urtwm_softc *sc, uint32_t addr)
+rtw88_read_4(struct rtw88_dev *rtwdev, uint32_t addr)
 {
-	return sc->rtw_dev.hci.ops->read32(sc, addr);
+	return rtwdev->hci.ops->read32(rtwdev, addr);
 }
 
-uint32_t urtwm_read_4(struct urtwm_softc *, uint16_t);
+uint32_t urtwm_read_4(struct rtw88_dev *, uint16_t);
+
+int
+rtw88_usb_setup(struct rtw88_dev *rtwdev)
+{
+	/* empty function for rtw_hci_ops */
+	return 0;
+}
+
 
 struct rtw88_hci_ops rtw88_usb_ops = {
+	.setup = rtw88_usb_setup,
 	.read32 = urtwm_read_4,
 };
 
@@ -600,8 +625,9 @@ urtwm_read_2(void *cookie, uint16_t addr)
 }
 
 uint32_t
-urtwm_read_4(struct urtwm_softc *sc, uint16_t addr)
+urtwm_read_4(struct rtw88_dev *rtwdev, uint16_t addr)
 {
+	struct urtwm_softc *sc = rtwdev->cookie;
 	uint32_t val;
 
 	if (urtwm_read_region_1(sc, addr, (uint8_t *)&val, 4) != 0)
@@ -646,9 +672,247 @@ urtwm_task(void *arg)
 }
 
 int
+rtw88_hci_setup(struct rtw88_dev *rtwdev)
+{
+        return rtwdev->hci.ops->setup(rtwdev);
+}
+
+/* -------------------------------------------------------------------------- */
+
+//int
+//rtw88_mac_pre_system_cfg(struct rtw_dev *rtwdev)
+//{
+//	unsigned int retry;
+//	uint32_t value32;
+//	uint8_t value8;
+//
+//	rtw88_write8(rtwdev, REG_RSV_CTRL, 0);
+//
+//	if (rtw88_chip_wcpu_11n(rtwdev)) {
+//		if (rtw88_read32(rtwdev, REG_SYS_CFG1) & BIT_LDO)
+//			rtw88_write8(rtwdev, REG_LDO_SWR_CTRL, LDO_SEL);
+//		else
+//			rtw88_write8(rtwdev, REG_LDO_SWR_CTRL, SPS_SEL);
+//		return 0;
+//	}
+//
+//	switch (rtw_hci_type(rtwdev)) {
+//	// TODO
+////	case RTW_HCI_TYPE_PCIE:
+////		rtw88_write32_set(rtwdev, REG_HCI_OPT_CTRL, BIT_USB_SUS_DIS);
+////		break;
+////	case RTW_HCI_TYPE_SDIO:
+////		rtw88_write8_clr(rtwdev, REG_SDIO_HSUS_CTRL, BIT_HCI_SUS_REQ);
+////
+////		for (retry = 0; retry < RTW_PWR_POLLING_CNT; retry++) {
+////			if (rtw88_read8(rtwdev, REG_SDIO_HSUS_CTRL) & BIT_HCI_RESUME_RDY)
+////				break;
+////
+////			usleep_range(10, 50);
+////		}
+////
+////		if (retry == RTW_PWR_POLLING_CNT) {
+////			rtw_err(rtwdev, "failed to poll REG_SDIO_HSUS_CTRL[1]");
+////			return -ETIMEDOUT;
+////		}
+////
+////		if (rtw_sdio_is_sdio30_supported(rtwdev))
+////			rtw88_write8_set(rtwdev, REG_HCI_OPT_CTRL + 2,
+////			    BIT_SDIO_PAD_E5 >> 16);
+////		else
+////			rtw88_write8_clr(rtwdev, REG_HCI_OPT_CTRL + 2,
+////			    BIT_SDIO_PAD_E5 >> 16);
+////		break;
+//	case RTW_HCI_TYPE_USB:
+//		break;
+//	default:
+//		return -EINVAL;
+//	}
+//
+//	/* config PIN Mux */
+//	value32 = rtw88_read32(rtwdev, REG_PAD_CTRL1);
+//	value32 |= BIT_PAPE_WLBT_SEL | BIT_LNAON_WLBT_SEL;
+//	rtw88_write32(rtwdev, REG_PAD_CTRL1, value32);
+//
+//	value32 = rtw88_read32(rtwdev, REG_LED_CFG);
+//	value32 &= ~(BIT_PAPE_SEL_EN | BIT_LNAON_SEL_EN);
+//	rtw88_write32(rtwdev, REG_LED_CFG, value32);
+//
+//	value32 = rtw88_read32(rtwdev, REG_GPIO_MUXCFG);
+//	value32 |= BIT_WLRFE_4_5_EN;
+//	rtw88_write32(rtwdev, REG_GPIO_MUXCFG, value32);
+//
+//	/* disable BB/RF */
+//	value8 = rtw88_read8(rtwdev, REG_SYS_FUNC_EN);
+//	value8 &= ~(BIT_FEN_BB_RSTB | BIT_FEN_BB_GLB_RST);
+//	rtw88_write8(rtwdev, REG_SYS_FUNC_EN, value8);
+//
+//	value8 = rtw88_read8(rtwdev, REG_RF_CTRL);
+//	value8 &= ~(BIT_RF_SDM_RSTB | BIT_RF_RSTB | BIT_RF_EN);
+//	rtw88_write8(rtwdev, REG_RF_CTRL, value8);
+//
+//	value32 = rtw88_read32(rtwdev, REG_WLRF1);
+//	value32 &= ~BIT_WLRF1_BBRF_EN;
+//	rtw88_write32(rtwdev, REG_WLRF1, value32);
+//
+//	return (0);
+//}
+//
+//int
+//rtw88_mac_power_on(struct urtwm_softc *sc)
+//{
+//	int ret = 0;
+//
+//	ret = rtw88_mac_pre_system_cfg(sc);
+//	if (ret)
+//		goto err;
+//
+////	ret = rtw88_mac_power_switch(sc, true);
+////	if (ret == -EALREADY) {
+////		rtw88_mac_power_switch(sc, false);
+////
+////		ret = rtw88_mac_pre_system_cfg(sc);
+////		if (ret)
+////			goto err;
+////
+////		ret = rtw88_mac_power_switch(sc, true);
+////		if (ret)
+////			goto err;
+////	} else if (ret) {
+////		goto err;
+////	}
+////
+////	ret = rtw88_mac_init_system_cfg(sc);
+////	if (ret)
+////		goto err;
+//
+//	return 0;
+//
+//err:
+//	printf("%s: %s: mac power on failed, error=%i", sc->sc_pdev->dv_xname,
+//	    __func__, ret);
+//	return ret;
+//}
+//
+//
+//int
+//rtw88_chip_efuse_enable(struct urtwm_softc *sc)
+//{
+//	struct rtw88_dev *rtwdev = &sc->rtw_dev;
+//	struct rtw_fw_state *fw = &rtwdev->fw;
+//	int ret;
+//
+//	ret = rtw88_hci_setup(rtwdev);
+//	if (ret) {
+//		printf("%s: %s: failed to setup hci, error=%i\n",
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+//		goto err;
+//	}
+//
+//	ret = rtw88_mac_power_on(sc);
+//	if (ret) {
+//		printf("%s: %s: failed to power on mac, error=%i\n",
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+//		goto err;
+//	}
+////
+////	rtw88_write8(rtwdev, REG_C2HEVT, C2H_HW_FEATURE_DUMP);
+////
+////	wait_for_completion(&fw->completion);
+////	if (!fw->firmware) {
+////		ret = -EINVAL;
+////		rtw88_err(rtwdev, "failed to load firmware\n");
+////		goto err;
+////	}
+////
+////	ret = rtw88_download_firmware(sc, fw);
+////	if (ret) {
+////		printf("%s: %s: failed to download firmware, error=%i\n",
+////		    sc->sc_pdev->dv_xname, __func__, ret);
+////		goto err_off;
+////	}
+////
+////	return 0;
+////
+////err_off:
+////	rtw88_mac_power_off(rtwdev);
+////
+//err:
+//	return ret;
+//}
+//
+//int
+//rtw88_chip_efuse_info_setup(struct urtwm_softc *sc) {
+//	struct rtw88_dev *rtwdev = &sc->rtw_dev;
+//	struct rtw88_efuse *efuse = &rtwdev->efuse;
+//	int ret;
+//
+//	/* power on mac to read efuse */
+//	ret = rtw88_chip_efuse_enable(sc);
+//	if (ret) {
+//		printf("%s: %s: rtw_chip_efuse_enable failed, error=%i\n",
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+//		return ret;
+//	};
+//
+////	ret = rtw88_parse_efuse_map(sc);
+////	if (ret)
+////		goto out_disable;
+////
+////	ret = rtw88_dump_hw_feature(sc);
+////	if (ret)
+////		goto out_disable;
+////
+////	ret = rtw88_check_supported_rfe(sc);
+////	if (ret)
+////		goto out_disable;
+////
+////	if (efuse->crystal_cap == 0xff)
+////		efuse->crystal_cap = 0;
+////	if (efuse->pa_type_2g == 0xff)
+////		efuse->pa_type_2g = 0;
+////	if (efuse->pa_type_5g == 0xff)
+////		efuse->pa_type_5g = 0;
+////	if (efuse->lna_type_2g == 0xff)
+////		efuse->lna_type_2g = 0;
+////	if (efuse->lna_type_5g == 0xff)
+////		efuse->lna_type_5g = 0;
+////	if (efuse->channel_plan == 0xff)
+////		efuse->channel_plan = 0x7f;
+////	if (efuse->rf_board_option == 0xff)
+////		efuse->rf_board_option = 0;
+////	if (efuse->bt_setting & BIT(0))
+////		efuse->share_ant = true;
+////	if (efuse->regd == 0xff)
+////		efuse->regd = 0;
+////	if (efuse->tx_bb_swing_setting_2g == 0xff)
+////		efuse->tx_bb_swing_setting_2g = 0;
+////	if (efuse->tx_bb_swing_setting_5g == 0xff)
+////		efuse->tx_bb_swing_setting_5g = 0;
+////
+////	efuse->btcoex = (efuse->rf_board_option & 0xe0) == 0x20;
+////	efuse->ext_pa_2g = efuse->pa_type_2g & BIT(4) ? 1 : 0;
+////	efuse->ext_lna_2g = efuse->lna_type_2g & BIT(3) ? 1 : 0;
+////	efuse->ext_pa_5g = efuse->pa_type_5g & BIT(0) ? 1 : 0;
+////	efuse->ext_lna_2g = efuse->lna_type_5g & BIT(3) ? 1 : 0;
+////
+////	if (!is_valid_ether_addr(efuse->addr)) {
+////		eth_random_addr(efuse->addr);
+////		dev_warn(rtwdev->dev, "efuse MAC invalid, using random\n");
+////	}
+////
+////out_disable:
+////	rtw_chip_efuse_disable(rtwdev);
+////	return ret;
+//
+//}
+
+/* -------------------------------------------------------------------------- */
+
+int
 rtw88_chip_parameter_setup(struct urtwm_softc *sc)
 {
-	struct rtw88_dev *rtwdev = &sc->rtw_dev;
+	struct rtw88_dev *rtwdev = &sc->sc_sc.rtw_dev;
 	const struct rtw88_chip_info *chip = rtwdev->chip;
 	struct rtw88_hal *hal = &rtwdev->hal;
 	struct rtw88_efuse *efuse = &rtwdev->efuse;
@@ -674,7 +938,7 @@ rtw88_chip_parameter_setup(struct urtwm_softc *sc)
 	}
 
 
-	hal->chip_version = rtw88_read_4(sc, RTW88_REG_SYS_CFG1);
+	hal->chip_version = rtw88_read_4(rtwdev, RTW88_REG_SYS_CFG1);
 	printf("%s: chip_version=%i\n", __func__, hal->chip_version);
 	hal->cut_version = RTW88_BIT_GET_CHIP_VER(hal->chip_version);
 	hal->mp_chip = (hal->chip_version & RTW88_BIT_RTL_ID) ? 0 : 1;
@@ -705,30 +969,39 @@ rtw88_chip_parameter_setup(struct urtwm_softc *sc)
 	return 0;
 }
 
+/* -------------------------------------------------------------------------- */
+
 void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
 {
 	struct urtwm_softc *sc = (struct urtwm_softc *)self;
-	struct rtw88_dev *rtwdev = &sc->rtw_dev;
+	struct rtw88_softc *sc_sc = &sc->sc_sc;
+	struct rtw88_dev *rtwdev = &sc_sc->rtw_dev;
 	struct usb_attach_arg *uaa = aux;
-	int err;
+	int ret;
 
 	sc->sc_udev = uaa->device;
 	sc->sc_iface = uaa->iface;
 
 	rtwdev->chip = &rtw8822b_hw_spec;
-	rtwdev->hci.type = RTW88_HCI_TYPE_USB;
 
+	rtwdev->hci.type = RTW88_HCI_TYPE_USB;
 	rtwdev->hci.ops = &rtw88_usb_ops;
+	rtwdev->cookie = sc;
 
 	usb_init_task(&sc->sc_task, urtwm_task, sc, USB_TASK_TYPE_GENERIC);
 
-	if ((err = rtw88_chip_parameter_setup(sc))) {
+	if ((ret = rtw88_chip_parameter_setup(sc))) {
 		printf("%s: %s: failed to setup chip parameters, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, err);
+		    sc->sc_pdev->dv_xname, __func__, ret);
 		return;
 	}
 
+//	if ((ret = rtw88_chip_efuse_info_setup(sc))) {
+//		printf("%s: %s: failed to setup chip efuse info, error=%i\n",
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+//		return;
+//	}
 	return;
 }
 
