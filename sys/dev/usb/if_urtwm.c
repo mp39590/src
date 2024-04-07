@@ -42,7 +42,7 @@
 
 /* -------------------------------------------------------------------------- */
 
-struct rtw_chip_info {
+struct rtw88_chip_info {
 //	struct rtw_chip_ops *ops;
 //	uint8_t id;
 //
@@ -159,7 +159,7 @@ struct rtw_chip_info {
 //	uint32_t wl_fw_desired_ver;
 };
 
-const struct rtw_chip_info rtw8822b_hw_spec = {
+const struct rtw88_chip_info rtw8822b_hw_spec = {
 //	.ops = &rtw8822b_ops,
 //	.id = RTW_CHIP_TYPE_8822B,
 //	.fw_name = "rtw88/rtw8822b_fw.bin",
@@ -281,7 +281,7 @@ enum rtw_rf_type {
 	RF_TYPE_MAX,
 };
 
-struct rtw_efuse {
+struct rtw88_efuse {
 	uint32_t size;
 	uint32_t physical_size;
 	uint32_t logical_size;
@@ -332,17 +332,46 @@ struct rtw_efuse {
 //	struct rtw_txpwr_idx txpwr_idx_table[4];
 };
 
-enum rtw_hci_type {
-	RTW_HCI_TYPE_PCIE,
-	RTW_HCI_TYPE_USB,
-	RTW_HCI_TYPE_SDIO,
+enum rtw88_hci_type {
+	RTW88_HCI_TYPE_PCIE,
+	RTW88_HCI_TYPE_USB,
+	RTW88_HCI_TYPE_SDIO,
 
-	RTW_HCI_TYPE_UNDEFINE,
+	RTW88_HCI_TYPE_UNDEFINE,
 };
 
-struct rtw_hci {
-//	struct rtw_hci_ops *ops;
-//	enum rtw_hci_type type;
+struct urtwm_softc;
+
+/* ops for PCI, USB and SDIO */
+struct rtw88_hci_ops {
+//	int (*tx_write)(struct rtw88_dev *rtwdev,
+//	    struct rtw88_tx_pkt_info *pkt_info,
+//	    struct sk_buff *skb);
+//	void (*tx_kick_off)(struct rtw88_dev *rtwdev);
+//	void (*flush_queues)(struct rtw88_dev *rtwdev, u32 queues, bool drop);
+//	int (*setup)(struct rtw88_dev *rtwdev);
+//	int (*start)(struct rtw88_dev *rtwdev);
+//	void (*stop)(struct rtw88_dev *rtwdev);
+//	void (*deep_ps)(struct rtw88_dev *rtwdev, bool enter);
+//	void (*link_ps)(struct rtw88_dev *rtwdev, bool enter);
+//	void (*interface_cfg)(struct rtw88_dev *rtwdev);
+//
+//	int (*write_data_rsvd_page)(struct rtw88_dev *rtwdev, u8 *buf, u32 size);
+//	int (*write_data_h2c)(struct rtw88_dev *rtwdev, u8 *buf, u32 size);
+
+//	uint8_t (*read8)(struct urtwm_softc *sc, uint32_t addr);
+//	uint16_t (*read16)(struct urtwm_softc *sc, uint32_t addr);
+	uint32_t (*read32)(struct urtwm_softc *sc, uint32_t addr);
+//	void (*write8)(struct urtwm_softc *sc, uint32_t addr, uint8_t val);
+//	void (*write16)(struct urtwm_softc *sc, uint32_t addr, uint16_t val);
+//	void (*write32)(struct urtwm_softc *sc, uint32_t addr, uint32_t val);
+};
+
+
+
+struct rtw88_hci {
+	struct rtw88_hci_ops *ops;
+	enum rtw88_hci_type type;
 //
 	uint32_t rpwm_addr;
 	uint32_t cpwm_addr;
@@ -350,7 +379,7 @@ struct rtw_hci {
 //	uint8_t bulkout_num;
 };
 
-struct rtw_hal {
+struct rtw88_hal {
 	uint32_t rcr;
 //
 	uint32_t chip_version;
@@ -410,18 +439,18 @@ struct rtw_hal {
 //	uint32_t ch_param[3];
 };
 
-struct rtw_dev {
+struct rtw88_dev {
 //	struct ieee80211_hw *hw;
 //	struct device *dev;
 //
-	struct rtw_hci hci;
+	struct rtw88_hci hci;
 //
 //	struct rtw_hw_scan_info scan_info;
-	const struct rtw_chip_info *chip;
-	struct rtw_hal hal;
+	const struct rtw88_chip_info *chip;
+	struct rtw88_hal hal;
 //	struct rtw_fifo_conf fifo;
 //	struct rtw_fw_state fw;
-	struct rtw_efuse efuse;
+	struct rtw88_efuse efuse;
 //	struct rtw_sec_desc sec;
 //	struct rtw_traffic_stats stats;
 //	struct rtw_regd regd;
@@ -498,14 +527,33 @@ struct urtwm_softc {
 	struct usbd_interface		*sc_iface;
 	struct usb_task			sc_task;
 
-	struct rtw_dev			rtw_dev;
+	struct rtw88_dev		rtw_dev;
 
-	/* from rtw_hci */
+	/* from rtw88_hci */
 //	uint32_t			rpwm_addr;
 //	uint32_t			cpwm_addr;
 
-	/* from rtw_hal */
+	/* from rtw88_hal */
 //	uint32_t			chip_version;
+};
+
+/* -------------------------------------------------------------------------- */
+
+inline enum rtw88_hci_type rtw88_hci_type(struct rtw88_dev *rtwdev)
+{
+	return rtwdev->hci.type;
+}
+
+uint32_t
+rtw88_read_4(struct urtwm_softc *sc, uint32_t addr)
+{
+	return sc->rtw_dev.hci.ops->read32(sc, addr);
+}
+
+uint32_t urtwm_read_4(struct urtwm_softc *, uint32_t);
+
+struct rtw88_hci_ops rtw88_usb_ops = {
+	.read32 = urtwm_read_4,
 };
 
 /* -------------------------------------------------------------------------- */
@@ -552,9 +600,8 @@ urtwm_read_2(void *cookie, uint16_t addr)
 }
 
 uint32_t
-urtwm_read_4(void *cookie, uint16_t addr)
+urtwm_read_4(struct urtwm_softc *sc, uint32_t addr)
 {
-	struct urtwm_softc *sc = cookie;
 	uint32_t val;
 
 	if (urtwm_read_region_1(sc, addr, (uint8_t *)&val, 4) != 0)
@@ -599,18 +646,36 @@ urtwm_task(void *arg)
 }
 
 int
-urtwm_chip_parameter_setup(struct urtwm_softc *sc)
+rtw88_chip_parameter_setup(struct urtwm_softc *sc)
 {
-	struct rtw_dev *rtwdev = &sc->rtw_dev;
-	const struct rtw_chip_info *chip = rtwdev->chip;
-	struct rtw_hal *hal = &rtwdev->hal;
-	struct rtw_efuse *efuse = &rtwdev->efuse;
+	struct rtw88_dev *rtwdev = &sc->rtw_dev;
+	const struct rtw88_chip_info *chip = rtwdev->chip;
+	struct rtw88_hal *hal = &rtwdev->hal;
+	struct rtw88_efuse *efuse = &rtwdev->efuse;
 
-	// TODO check for hal type
-	rtwdev->hci.rpwm_addr = 0xfe58;
-	rtwdev->hci.cpwm_addr = 0xfe57;
+	switch (rtw88_hci_type(rtwdev)) {
+	case RTW88_HCI_TYPE_PCIE:
+		rtwdev->hci.rpwm_addr = 0x03d9;
+		rtwdev->hci.cpwm_addr = 0x03da;
+		break;
+	case RTW88_HCI_TYPE_SDIO:
+		// TODO
+//		rtwdev->hci.rpwm_addr = RTW88_REG_SDIO_HRPWM1;
+//		rtwdev->hci.cpwm_addr = RTW88_REG_SDIO_HCPWM1_V2;
+		break;
+	case RTW88_HCI_TYPE_USB:
+		rtwdev->hci.rpwm_addr = 0xfe58;
+		rtwdev->hci.cpwm_addr = 0xfe57;
+		break;
+	default:
+		printf("%s: %s: unsupported hci type\n",
+		    sc->sc_pdev->dv_xname, __func__);
+		return -EINVAL;
+	}
 
-	hal->chip_version = urtwm_read_4(sc, RTW88_REG_SYS_CFG1);
+
+//	hal->chip_version = urtwm_read_4(sc, RTW88_REG_SYS_CFG1);
+	hal->chip_version = rtw88_read_4(sc, RTW88_REG_SYS_CFG1);
 	printf("%s: chip_version=%i\n", __func__, hal->chip_version);
 	hal->cut_version = RTW88_BIT_GET_CHIP_VER(hal->chip_version);
 	hal->mp_chip = (hal->chip_version & RTW88_BIT_RTL_ID) ? 0 : 1;
@@ -645,17 +710,27 @@ void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
 {
 	struct urtwm_softc *sc = (struct urtwm_softc *)self;
-	struct rtw_dev *rtwdev = &sc->rtw_dev;
+	struct rtw88_dev *rtwdev = &sc->rtw_dev;
 	struct usb_attach_arg *uaa = aux;
+	int err;
 
 	sc->sc_udev = uaa->device;
 	sc->sc_iface = uaa->iface;
 
 	rtwdev->chip = &rtw8822b_hw_spec;
+	rtwdev->hci.type = RTW88_HCI_TYPE_USB;
+
+	rtwdev->hci.ops = &rtw88_usb_ops;
 
 	usb_init_task(&sc->sc_task, urtwm_task, sc, USB_TASK_TYPE_GENERIC);
 
-	urtwm_chip_parameter_setup(sc);
+	if ((err = rtw88_chip_parameter_setup(sc))) {
+		printf("%s: %s: failed to setup chip parameters, error=%i\n",
+		    sc->sc_pdev->dv_xname, __func__, err);
+		return;
+	}
+
+	return;
 }
 
 int
