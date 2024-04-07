@@ -366,12 +366,12 @@ struct rtw88_hci_ops {
 //	int (*write_data_rsvd_page)(struct rtw88_dev *rtwdev, u8 *buf, u32 size);
 //	int (*write_data_h2c)(struct rtw88_dev *rtwdev, u8 *buf, u32 size);
 
-//	uint8_t (*read8)(struct urtwm_softc *sc, uint32_t addr);
-//	uint16_t (*read16)(struct urtwm_softc *sc, uint32_t addr);
+	uint8_t (*read8)(struct rtw88_dev *rtwdev, uint16_t addr);
+	uint16_t (*read16)(struct rtw88_dev *rtwdev, uint16_t addr);
 	uint32_t (*read32)(struct rtw88_dev *rtwdev, uint16_t addr);
-//	void (*write8)(struct urtwm_softc *sc, uint32_t addr, uint8_t val);
-//	void (*write16)(struct urtwm_softc *sc, uint32_t addr, uint16_t val);
-//	void (*write32)(struct urtwm_softc *sc, uint32_t addr, uint32_t val);
+	void (*write8)(struct rtw88_dev *rtwdev, uint16_t addr, uint8_t val);
+	void (*write16)(struct rtw88_dev *rtwdev, uint16_t addr, uint16_t val);
+	void (*write32)(struct rtw88_dev *rtwdev, uint16_t addr, uint32_t val);
 };
 
 
@@ -560,8 +560,20 @@ inline enum rtw88_hci_type rtw88_hci_type(struct rtw88_dev *rtwdev)
 	return rtwdev->hci.type;
 }
 
+uint8_t
+rtw88_read_8(struct rtw88_dev *rtwdev, uint32_t addr)
+{
+	return rtwdev->hci.ops->read8(rtwdev, addr);
+}
+
+uint16_t
+rtw88_read_16(struct rtw88_dev *rtwdev, uint32_t addr)
+{
+	return rtwdev->hci.ops->read16(rtwdev, addr);
+}
+
 uint32_t
-rtw88_read_4(struct rtw88_dev *rtwdev, uint32_t addr)
+rtw88_read_32(struct rtw88_dev *rtwdev, uint32_t addr)
 {
 	return rtwdev->hci.ops->read32(rtwdev, addr);
 }
@@ -575,26 +587,62 @@ rtw88_usb_setup(struct rtw88_dev *rtwdev)
 	return 0;
 }
 
-
-struct rtw88_hci_ops rtw88_usb_ops = {
-	.setup = rtw88_usb_setup,
-	.read32 = urtwm_read_4,
-};
-
 /* -------------------------------------------------------------------------- */
 
 int urtwm_match(struct device *, void *, void *);
 void urtwm_attach(struct device *, struct device *, void *);
 int urtwm_detach(struct device *, int);
 
+#define	RTW88_REQ_REGS 0x5
+#define RTW88_USB_CMD_WRITE 0x40
+#define RTW88_USB_CMD_READ 0xc0
+int
+urtwm_write_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
+    int len)
+{
+	usb_device_request_t req;
+
+	req.bmRequestType = RTW88_USB_CMD_WRITE;
+	req.bRequest = RTW88_REQ_REGS;
+	USETW(req.wValue, addr);
+	USETW(req.wIndex, 0);
+	USETW(req.wLength, len);
+	return (usbd_do_request(sc->sc_udev, &req, buf));
+}
+
+void
+urtwm_write_8(struct rtw88_dev *rtwdev, uint16_t addr, uint8_t val)
+{
+	struct urtwm_softc *sc = rtwdev->cookie;
+
+	urtwm_write_region_1(sc, addr, &val, 1);
+}
+
+void
+urtwm_write_16(struct rtw88_dev *rtwdev, uint16_t addr, uint16_t val)
+{
+	struct urtwm_softc *sc = rtwdev->cookie;
+
+	val = htole16(val);
+	urtwm_write_region_1(sc, addr, (uint8_t *)&val, 2);
+}
+
+void
+urtwm_write_32(struct rtw88_dev *rtwdev, uint16_t addr, uint32_t val)
+{
+	struct urtwm_softc *sc = rtwdev->cookie;
+
+	val = htole32(val);
+	urtwm_write_region_1(sc, addr, (uint8_t *)&val, 4);
+}
+
 int
 urtwm_read_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
     int len)
 {
-#define	RTW88_REQ_REGS 0x5
 	usb_device_request_t req;
 
-	req.bmRequestType = UT_READ_VENDOR_DEVICE;
+	req.bmRequestType = RTW88_USB_CMD_READ;
 	req.bRequest = RTW88_REQ_REGS;
 	USETW(req.wValue, addr);
 	USETW(req.wIndex, 0);
@@ -603,9 +651,9 @@ urtwm_read_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 }
 
 uint8_t
-urtwm_read_1(void *cookie, uint16_t addr)
+urtwm_read_8(struct rtw88_dev *rtwdev, uint16_t addr)
 {
-	struct urtwm_softc *sc = cookie;
+	struct urtwm_softc *sc = rtwdev->cookie;
 	uint8_t val;
 
 	if (urtwm_read_region_1(sc, addr, &val, 1) != 0)
@@ -614,9 +662,9 @@ urtwm_read_1(void *cookie, uint16_t addr)
 }
 
 uint16_t
-urtwm_read_2(void *cookie, uint16_t addr)
+urtwm_read_16(struct rtw88_dev *rtwdev, uint16_t addr)
 {
-	struct urtwm_softc *sc = cookie;
+	struct urtwm_softc *sc = rtwdev->cookie;
 	uint16_t val;
 
 	if (urtwm_read_region_1(sc, addr, (uint8_t *)&val, 2) != 0)
@@ -625,7 +673,7 @@ urtwm_read_2(void *cookie, uint16_t addr)
 }
 
 uint32_t
-urtwm_read_4(struct rtw88_dev *rtwdev, uint16_t addr)
+urtwm_read_32(struct rtw88_dev *rtwdev, uint16_t addr)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 	uint32_t val;
@@ -634,6 +682,18 @@ urtwm_read_4(struct rtw88_dev *rtwdev, uint16_t addr)
 		return (0xffffffff);
 	return (letoh32(val));
 }
+
+struct rtw88_hci_ops rtw88_usb_ops = {
+	.setup = rtw88_usb_setup,
+	.write8 = urtwm_write_8,
+	.write16 = urtwm_write_16,
+	.write32 = urtwm_write_32,
+	.read8= urtwm_read_8,
+	.read16 = urtwm_read_16,
+	.read32 = urtwm_read_32,
+};
+
+/* -------------------------------------------------------------------------- */
 
 struct cfdriver urtwm_cd = {
 	NULL, "urtwm", DV_IFNET
@@ -686,41 +746,41 @@ rtw88_hci_setup(struct rtw88_dev *rtwdev)
 //	uint32_t value32;
 //	uint8_t value8;
 //
-//	rtw88_write8(rtwdev, REG_RSV_CTRL, 0);
+//	rtw88_write8(rtwdev, RTW88_REG_RSV_CTRL, 0);
 //
 //	if (rtw88_chip_wcpu_11n(rtwdev)) {
-//		if (rtw88_read32(rtwdev, REG_SYS_CFG1) & BIT_LDO)
-//			rtw88_write8(rtwdev, REG_LDO_SWR_CTRL, LDO_SEL);
+//		if (rtw88_read32(rtwdev, RTW88_REG_SYS_CFG1) & BIT_LDO)
+//			rtw88_write8(rtwdev, RTW88_REG_LDO_SWR_CTRL, LDO_SEL);
 //		else
-//			rtw88_write8(rtwdev, REG_LDO_SWR_CTRL, SPS_SEL);
+//			rtw88_write8(rtwdev, RTW88_REG_LDO_SWR_CTRL, SPS_SEL);
 //		return 0;
 //	}
 //
-//	switch (rtw_hci_type(rtwdev)) {
+//	switch (rtw88_hci_type(rtwdev)) {
 //	// TODO
 ////	case RTW_HCI_TYPE_PCIE:
-////		rtw88_write32_set(rtwdev, REG_HCI_OPT_CTRL, BIT_USB_SUS_DIS);
+////		rtw88_write32_set(rtwdev, RTW88_REG_HCI_OPT_CTRL, BIT_USB_SUS_DIS);
 ////		break;
 ////	case RTW_HCI_TYPE_SDIO:
-////		rtw88_write8_clr(rtwdev, REG_SDIO_HSUS_CTRL, BIT_HCI_SUS_REQ);
+////		rtw88_write8_clr(rtwdev, RTW88_REG_SDIO_HSUS_CTRL, BIT_HCI_SUS_REQ);
 ////
 ////		for (retry = 0; retry < RTW_PWR_POLLING_CNT; retry++) {
-////			if (rtw88_read8(rtwdev, REG_SDIO_HSUS_CTRL) & BIT_HCI_RESUME_RDY)
+////			if (rtw88_read8(rtwdev, RTW88_REG_SDIO_HSUS_CTRL) & BIT_HCI_RESUME_RDY)
 ////				break;
 ////
 ////			usleep_range(10, 50);
 ////		}
 ////
 ////		if (retry == RTW_PWR_POLLING_CNT) {
-////			rtw_err(rtwdev, "failed to poll REG_SDIO_HSUS_CTRL[1]");
+////			rtw_err(rtwdev, "failed to poll RTW88_REG_SDIO_HSUS_CTRL[1]");
 ////			return -ETIMEDOUT;
 ////		}
 ////
 ////		if (rtw_sdio_is_sdio30_supported(rtwdev))
-////			rtw88_write8_set(rtwdev, REG_HCI_OPT_CTRL + 2,
+////			rtw88_write8_set(rtwdev, RTW88_REG_HCI_OPT_CTRL + 2,
 ////			    BIT_SDIO_PAD_E5 >> 16);
 ////		else
-////			rtw88_write8_clr(rtwdev, REG_HCI_OPT_CTRL + 2,
+////			rtw88_write8_clr(rtwdev, RTW88_REG_HCI_OPT_CTRL + 2,
 ////			    BIT_SDIO_PAD_E5 >> 16);
 ////		break;
 //	case RTW_HCI_TYPE_USB:
@@ -730,30 +790,30 @@ rtw88_hci_setup(struct rtw88_dev *rtwdev)
 //	}
 //
 //	/* config PIN Mux */
-//	value32 = rtw88_read32(rtwdev, REG_PAD_CTRL1);
+//	value32 = rtw88_read32(rtwdev, RTW88_REG_PAD_CTRL1);
 //	value32 |= BIT_PAPE_WLBT_SEL | BIT_LNAON_WLBT_SEL;
-//	rtw88_write32(rtwdev, REG_PAD_CTRL1, value32);
+//	rtw88_write32(rtwdev, RTW88_REG_PAD_CTRL1, value32);
 //
-//	value32 = rtw88_read32(rtwdev, REG_LED_CFG);
+//	value32 = rtw88_read32(rtwdev, RTW88_REG_LED_CFG);
 //	value32 &= ~(BIT_PAPE_SEL_EN | BIT_LNAON_SEL_EN);
-//	rtw88_write32(rtwdev, REG_LED_CFG, value32);
+//	rtw88_write32(rtwdev, RTW88_REG_LED_CFG, value32);
 //
-//	value32 = rtw88_read32(rtwdev, REG_GPIO_MUXCFG);
+//	value32 = rtw88_read32(rtwdev, RTW88_REG_GPIO_MUXCFG);
 //	value32 |= BIT_WLRFE_4_5_EN;
-//	rtw88_write32(rtwdev, REG_GPIO_MUXCFG, value32);
+//	rtw88_write32(rtwdev, RTW88_REG_GPIO_MUXCFG, value32);
 //
 //	/* disable BB/RF */
-//	value8 = rtw88_read8(rtwdev, REG_SYS_FUNC_EN);
+//	value8 = rtw88_read8(rtwdev, RTW88_REG_SYS_FUNC_EN);
 //	value8 &= ~(BIT_FEN_BB_RSTB | BIT_FEN_BB_GLB_RST);
-//	rtw88_write8(rtwdev, REG_SYS_FUNC_EN, value8);
+//	rtw88_write8(rtwdev, RTW88_REG_SYS_FUNC_EN, value8);
 //
-//	value8 = rtw88_read8(rtwdev, REG_RF_CTRL);
+//	value8 = rtw88_read8(rtwdev, RTW88_REG_RF_CTRL);
 //	value8 &= ~(BIT_RF_SDM_RSTB | BIT_RF_RSTB | BIT_RF_EN);
-//	rtw88_write8(rtwdev, REG_RF_CTRL, value8);
+//	rtw88_write8(rtwdev, RTW88_REG_RF_CTRL, value8);
 //
-//	value32 = rtw88_read32(rtwdev, REG_WLRF1);
+//	value32 = rtw88_read32(rtwdev, RTW88_REG_WLRF1);
 //	value32 &= ~BIT_WLRF1_BBRF_EN;
-//	rtw88_write32(rtwdev, REG_WLRF1, value32);
+//	rtw88_write32(rtwdev, RTW88_REG_WLRF1, value32);
 //
 //	return (0);
 //}
@@ -938,7 +998,7 @@ rtw88_chip_parameter_setup(struct urtwm_softc *sc)
 	}
 
 
-	hal->chip_version = rtw88_read_4(rtwdev, RTW88_REG_SYS_CFG1);
+	hal->chip_version = rtw88_read_32(rtwdev, RTW88_REG_SYS_CFG1);
 	printf("%s: chip_version=%i\n", __func__, hal->chip_version);
 	hal->cut_version = RTW88_BIT_GET_CHIP_VER(hal->chip_version);
 	hal->mp_chip = (hal->chip_version & RTW88_BIT_RTL_ID) ? 0 : 1;
