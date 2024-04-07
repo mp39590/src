@@ -361,7 +361,7 @@ struct rtw88_hci_ops {
 
 //	uint8_t (*read8)(struct urtwm_softc *sc, uint32_t addr);
 //	uint16_t (*read16)(struct urtwm_softc *sc, uint32_t addr);
-	uint32_t (*read32)(struct urtwm_softc *sc, uint32_t addr);
+	uint32_t (*read32)(struct urtwm_softc *sc, uint16_t addr);
 //	void (*write8)(struct urtwm_softc *sc, uint32_t addr, uint8_t val);
 //	void (*write16)(struct urtwm_softc *sc, uint32_t addr, uint16_t val);
 //	void (*write32)(struct urtwm_softc *sc, uint32_t addr, uint32_t val);
@@ -550,7 +550,7 @@ rtw88_read_4(struct urtwm_softc *sc, uint32_t addr)
 	return sc->rtw_dev.hci.ops->read32(sc, addr);
 }
 
-uint32_t urtwm_read_4(struct urtwm_softc *, uint32_t);
+uint32_t urtwm_read_4(struct urtwm_softc *, uint16_t);
 
 struct rtw88_hci_ops rtw88_usb_ops = {
 	.read32 = urtwm_read_4,
@@ -600,7 +600,7 @@ urtwm_read_2(void *cookie, uint16_t addr)
 }
 
 uint32_t
-urtwm_read_4(struct urtwm_softc *sc, uint32_t addr)
+urtwm_read_4(struct urtwm_softc *sc, uint16_t addr)
 {
 	uint32_t val;
 
@@ -674,7 +674,6 @@ rtw88_chip_parameter_setup(struct urtwm_softc *sc)
 	}
 
 
-//	hal->chip_version = urtwm_read_4(sc, RTW88_REG_SYS_CFG1);
 	hal->chip_version = rtw88_read_4(sc, RTW88_REG_SYS_CFG1);
 	printf("%s: chip_version=%i\n", __func__, hal->chip_version);
 	hal->cut_version = RTW88_BIT_GET_CHIP_VER(hal->chip_version);
