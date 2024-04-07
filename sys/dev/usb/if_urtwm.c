@@ -50,6 +50,8 @@
 
 /* -------------------------------------------------------------------------- */
 
+// {{{ data structures
+
 enum rtw_c2h_cmd_id {
 	RTW88_C2H_CCX_TX_RPT = 0x03,
 	RTW88_C2H_BT_INFO = 0x09,
@@ -1020,8 +1022,11 @@ struct urtwm_softc {
 	struct usb_task			sc_task;
 };
 
+// }}}
+
 /* -------------------------------------------------------------------------- */
 
+// {{{ read/write/other operations
 
 inline int rtw88_chip_wcpu_11n(struct rtw88_dev *rtwdev)
 {
@@ -1101,9 +1106,6 @@ rtw88_write16_clr(struct rtw88_dev *rtwdev, uint32_t addr, uint16_t bit)
         val = rtw88_read16(rtwdev, addr);
         rtw88_write16(rtwdev, addr, val & ~bit);
 }
-
-
-/* -------------------------------------------------------------------------- */
 
 int urtwm_match(struct device *, void *, void *);
 void urtwm_attach(struct device *, struct device *, void *);
@@ -1209,7 +1211,15 @@ struct rtw88_hci_ops rtw88_usb_ops = {
 	.read32 = urtwm_read_32,
 };
 
-/* -------------------------------------------------------------------------- */
+int
+rtw88_hci_setup(struct rtw88_dev *rtwdev)
+{
+	return rtwdev->hci.ops->setup(rtwdev);
+}
+
+// }}}
+
+// {{{ other stuff
 
 struct cfdriver urtwm_cd = {
 	NULL, "urtwm", DV_IFNET
@@ -1247,13 +1257,15 @@ urtwm_task(void *arg)
 {
 }
 
-int
-rtw88_hci_setup(struct rtw88_dev *rtwdev)
-{
-	return rtwdev->hci.ops->setup(rtwdev);
-}
+// }}}
 
 /* -------------------------------------------------------------------------- */
+
+// {{{ rtw88_download_firmware
+
+// }}}
+
+// {{{ rtw88_mac_power_on
 int
 __rtw88_mac_init_system_cfg(struct rtw88_dev *rtwdev)
 {
@@ -1671,6 +1683,7 @@ err:
 	return ret;
 }
 
+// }}}
 
 int
 rtw88_chip_efuse_enable(struct rtw88_dev *rtwdev)
