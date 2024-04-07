@@ -50,6 +50,21 @@
 
 /* -------------------------------------------------------------------------- */
 
+enum rtw_c2h_cmd_id {
+	RTW88_C2H_CCX_TX_RPT = 0x03,
+	RTW88_C2H_BT_INFO = 0x09,
+	RTW88_C2H_BT_MP_INFO = 0x0b,
+	RTW88_C2H_BT_HID_INFO = 0x45,
+	RTW88_C2H_RA_RPT = 0x0c,
+	RTW88_C2H_HW_FEATURE_REPORT = 0x19,
+	RTW88_C2H_WLAN_INFO = 0x27,
+	RTW88_C2H_WLAN_RFON = 0x32,
+	RTW88_C2H_BCN_FILTER_NOTIFY = 0x36,
+	RTW88_C2H_ADAPTIVITY = 0x37,
+	RTW88_C2H_SCAN_RESULT = 0x38,
+	RTW88_C2H_HW_FEATURE_DUMP = 0xfd,
+	RTW88_C2H_HALMAC = 0xff,
+};
 
 enum rtw88_wlan_cpu {
 	RTW88_WCPU_11AC,
@@ -124,7 +139,7 @@ struct rtw88_chip_info {
 //	uint8_t lps_deep_mode_supported;
 //
 //	/* init values */
-//	uint8_t sys_func_en;
+	uint8_t sys_func_en;
 	const struct rtw88_pwr_seq_cmd **pwr_on_seq;
 	const struct rtw88_pwr_seq_cmd **pwr_off_seq;
 //	const struct rtw_rqpn *rqpn_table;
@@ -636,7 +651,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 //	.ht_supported = true,
 //	.vht_supported = true,
 //	.lps_deep_mode_supported = BIT(LPS_DEEP_MODE_LCLK),
-//	.sys_func_en = 0xDC,
+	.sys_func_en = 0xDC,
 	.pwr_on_seq = card_enable_flow_8822b,
 	.pwr_off_seq = card_disable_flow_8822b,
 //	.page_table = page_table_8822b,
@@ -903,6 +918,8 @@ struct rtw_fw_state {
 //	u32 feature;
 //	u32 feature_ext;
 //	enum rtw_fw_type type;
+	u_char *fwdata;
+	size_t fwsize;
 };
 
 
@@ -1067,6 +1084,25 @@ rtw88_usb_setup(struct rtw88_dev *rtwdev)
 	return 0;
 }
 
+inline void
+rtw88_write8_set(struct rtw88_dev *rtwdev, uint32_t addr, uint8_t bit)
+{
+	uint8_t val;
+
+	val = rtw88_read8(rtwdev, addr);
+	rtw88_write8(rtwdev, addr, val | bit);
+}
+
+inline void
+rtw88_write16_clr(struct rtw88_dev *rtwdev, uint32_t addr, uint16_t bit)
+{
+        uint16_t val;
+
+        val = rtw88_read16(rtwdev, addr);
+        rtw88_write16(rtwdev, addr, val & ~bit);
+}
+
+
 /* -------------------------------------------------------------------------- */
 
 int urtwm_match(struct device *, void *, void *);
@@ -1218,6 +1254,56 @@ rtw88_hci_setup(struct rtw88_dev *rtwdev)
 }
 
 /* -------------------------------------------------------------------------- */
+int
+__rtw88_mac_init_system_cfg(struct rtw88_dev *rtwdev)
+{
+	uint8_t sys_func_en = rtwdev->chip->sys_func_en;
+	uint8_t value8;
+	uint32_t value, tmp;
+
+	value = rtw88_read32(rtwdev, RTW88_REG_CPU_DMEM_CON);
+	value |= RTW88_BIT_WL_PLATFORM_RST | RTW88_BIT_DDMA_EN;
+	rtw88_write32(rtwdev, RTW88_REG_CPU_DMEM_CON, value);
+
+	rtw88_write8_set(rtwdev, RTW88_REG_SYS_FUNC_EN + 1, sys_func_en);
+	value8 = (rtw88_read8(rtwdev, RTW88_REG_CR_EXT + 3) & 0xF0) | 0x0C;
+	rtw88_write8(rtwdev, RTW88_REG_CR_EXT + 3, value8);
+
+	/* disable boot-from-flash for driver's DL FW */
+	tmp = rtw88_read32(rtwdev, RTW88_REG_MCUFW_CTRL);
+	if (tmp & RTW88_BIT_BOOT_FSPI_EN) {
+		rtw88_write32(rtwdev, RTW88_REG_MCUFW_CTRL, tmp & (~RTW88_BIT_BOOT_FSPI_EN));
+		value = rtw88_read32(rtwdev, RTW88_REG_GPIO_MUXCFG) & (~RTW88_BIT_FSPI_EN);
+		rtw88_write32(rtwdev, RTW88_REG_GPIO_MUXCFG, value);
+	}
+
+	return 0;
+}
+
+int
+__rtw88_mac_init_system_cfg_legacy(struct rtw88_dev *rtwdev)
+{
+	rtw88_write8(rtwdev, RTW88_REG_CR, 0xff);
+	DELAY(2 * 1000);
+	rtw88_write8(rtwdev, RTW88_REG_HWSEQ_CTRL, 0x7f);
+	DELAY(2 * 1000);
+
+	rtw88_write8_set(rtwdev, RTW88_REG_SYS_CLKR, RTW88_BIT_WAKEPAD_EN);
+	rtw88_write16_clr(rtwdev, RTW88_REG_GPIO_MUXCFG, RTW88_BIT_EN_SIC);
+
+	rtw88_write16(rtwdev, RTW88_REG_CR, 0x2ff);
+
+	return 0;
+}
+
+int
+rtw88_mac_init_system_cfg(struct rtw88_dev *rtwdev)
+{
+	if (rtw88_chip_wcpu_11n(rtwdev))
+		return __rtw88_mac_init_system_cfg_legacy(rtwdev);
+
+	return __rtw88_mac_init_system_cfg(rtwdev);
+}
 
 #define RTW88_SDIO_LOCAL_OFFSET			      0x10250000
 
@@ -1559,23 +1645,23 @@ rtw88_mac_power_on(struct rtw88_dev *rtwdev)
 		goto err;
 
 	ret = rtw88_mac_power_switch(rtwdev, 1);
-//	if (ret == EALREADY) {
-//		rtw88_mac_power_switch(rtwdev, false);
-//
-//		ret = rtw88_mac_pre_system_cfg(rtwdev);
-//		if (ret)
-//			goto err;
-//
-//		ret = rtw88_mac_power_switch(rtwdev, true);
-//		if (ret)
-//			goto err;
-//	} else if (ret) {
-//		goto err;
-//	}
-//
-//	ret = rtw88_mac_init_system_cfg(rtwdev);
-//	if (ret)
-//		goto err;
+	if (ret == EALREADY) {
+		rtw88_mac_power_switch(rtwdev, false);
+
+		ret = rtw88_mac_pre_system_cfg(rtwdev);
+		if (ret)
+			goto err;
+
+		ret = rtw88_mac_power_switch(rtwdev, true);
+		if (ret)
+			goto err;
+	} else if (ret) {
+		goto err;
+	}
+
+	ret = rtw88_mac_init_system_cfg(rtwdev);
+	if (ret)
+		goto err;
 
 	return 0;
 
@@ -1590,7 +1676,7 @@ int
 rtw88_chip_efuse_enable(struct rtw88_dev *rtwdev)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
-//	struct rtw_fw_state *fw = &rtwdev->fw;
+	struct rtw_fw_state *fw = &rtwdev->fw;
 	int ret;
 
 	ret = rtw88_hci_setup(rtwdev);
@@ -1606,16 +1692,25 @@ rtw88_chip_efuse_enable(struct rtw88_dev *rtwdev)
 		    sc->sc_pdev->dv_xname, __func__, ret);
 		goto err;
 	}
-//
-//	rtw88_write8(rtwdev, REG_C2HEVT, C2H_HW_FEATURE_DUMP);
-//
+
+	rtw88_write8(rtwdev, RTW88_REG_C2HEVT, RTW88_C2H_HW_FEATURE_DUMP);
+
+	// TODO: remove linusism
 //	wait_for_completion(&fw->completion);
 //	if (!fw->firmware) {
 //		ret = -EINVAL;
 //		rtw88_err(rtwdev, "failed to load firmware\n");
 //		goto err;
 //	}
-//
+	ret = loadfirmware(rtwdev->chip->fw_name, &fw->fwdata, &fw->fwsize);
+	if (ret) {
+		printf("%s: %s: could not read %s, error=%i\n",
+		    sc->sc_pdev->dv_xname, __func__, rtwdev->chip->fw_name,
+		    ret);
+		goto err;
+	};
+
+
 //	ret = rtw88_download_firmware(rtwdev, fw);
 //	if (ret) {
 //		printf("%s: %s: failed to download firmware, error=%i\n",
