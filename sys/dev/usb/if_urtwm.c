@@ -36,7 +36,14 @@
 
 #include <dev/ic/rtw88reg.h>
 
-/* -------------------------------------------------------------------------- */
+
+typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t u8;
+typedef uint16_t __le16;
+typedef uint32_t __le32;
+
+#define le32_to_cpu le32toh
 
 #define	BIT(x)	(1 << (x))
 #define clear_bit(i, a) ((a)) &= ~(1 << (i))
@@ -48,9 +55,85 @@
 
 #define cut_version_to_mask(cut) (0x1 << ((cut) + 1))
 
-/* -------------------------------------------------------------------------- */
+#define DLFW_RESTORE_REG_NUM 6
+#define FW_HDR_CHKSUM_SIZE              8
+#define FW_HDR_SIZE                     64
+
+#define REG_WL2LTECOEX_INDIRECT_ACCESS_CTRL_V1          0x1700
+#define REG_WL2LTECOEX_INDIRECT_ACCESS_WRITE_DATA_V1    0x1704
+#define REG_WL2LTECOEX_INDIRECT_ACCESS_READ_DATA_V1     0x1708
+#define LTECOEX_READY           BIT(29)
+#define LTECOEX_ACCESS_CTRL REG_WL2LTECOEX_INDIRECT_ACCESS_CTRL_V1
+#define LTECOEX_WRITE_DATA REG_WL2LTECOEX_INDIRECT_ACCESS_WRITE_DATA_V1
+#define LTECOEX_READ_DATA REG_WL2LTECOEX_INDIRECT_ACCESS_READ_DATA_V1
+
+#define REG_RSV_CTRL            0x001C
+#define BIT_WLMCU_IOIF          BIT(0)
+#define REG_SYS_FUNC_EN         0x0002
+#define BIT_FEN_CPUEN           BIT(2)
+
+#include <dev/ic/rtw88/reg.h>
+
+#define rtw_hci_type rtw88_hci_type
 
 // {{{ data structures
+
+enum rtw_dma_mapping {
+        RTW_DMA_MAPPING_EXTRA   = 0,
+        RTW_DMA_MAPPING_LOW     = 1,
+        RTW_DMA_MAPPING_NORMAL  = 2,
+        RTW_DMA_MAPPING_HIGH    = 3,
+
+        RTW_DMA_MAPPING_MAX,
+        RTW_DMA_MAPPING_UNDEF,
+};
+
+struct rtw_ltecoex_addr {
+        u32 ctrl;
+        u32 wdata;
+        u32 rdata;
+};
+
+static const struct rtw_ltecoex_addr rtw8822b_ltecoex_addr = {
+        .ctrl = LTECOEX_ACCESS_CTRL,
+        .wdata = LTECOEX_WRITE_DATA,
+        .rdata = LTECOEX_READ_DATA,
+};
+
+struct rtw_backup_info {
+        u8 len;
+        u32 reg;
+        u32 val;
+};
+
+struct rtw_fw_hdr {
+	__le16 signature;
+	u8 category;
+	u8 function;
+	__le16 version;		/* 0x04 */
+	u8 subversion;
+	u8 subindex;
+	__le32 rsvd;		/* 0x08 */
+	__le32 feature;		/* 0x0C */
+	u8 month;		/* 0x10 */
+	u8 day;
+	u8 hour;
+	u8 min;
+	__le16 year;		/* 0x14 */
+	__le16 rsvd3;
+	u8 mem_usage;		/* 0x18 */
+	u8 rsvd4[3];
+	__le16 h2c_fmt_ver;	/* 0x1C */
+	__le16 rsvd5;
+	__le32 dmem_addr;	/* 0x20 */
+	__le32 dmem_size;
+	__le32 rsvd6;
+	__le32 rsvd7;
+	__le32 imem_size;	/* 0x30 */
+	__le32 emem_size;
+	__le32 emem_addr;
+	__le32 imem_addr;
+} __packed;
 
 enum rtw_c2h_cmd_id {
 	RTW88_C2H_CCX_TX_RPT = 0x03,
@@ -155,7 +238,7 @@ struct rtw88_chip_info {
 //	uint32_t rf_sipi_addr[2];
 //	const struct rtw_rf_sipi_addr *rf_sipi_read_addr;
 	uint8_t fix_rf_phy_num;
-//	const struct rtw_ltecoex_addr *ltecoex_addr;
+	const struct rtw_ltecoex_addr *ltecoex_addr;
 //
 //	const struct rtw_table *mac_tbl;
 //	const struct rtw_table *agc_tbl;
@@ -217,6 +300,8 @@ struct rtw88_chip_info {
 //	const struct rtw_reg_domain *coex_info_hw_regs;
 //	uint32_t wl_fw_desired_ver;
 };
+
+#define rtw_chip_info rtw88_chip_info
 
 #define RTW88_RTW_PWR_POLLING_CNT	20000
 
@@ -664,7 +749,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 //	.dig_cck = NULL,
 //	.rf_base_addr = {0x2800, 0x2c00},
 //	.rf_sipi_addr = {0xc90, 0xe90},
-//	.ltecoex_addr = &rtw8822b_ltecoex_addr,
+	.ltecoex_addr = &rtw8822b_ltecoex_addr,
 //	.mac_tbl = &rtw8822b_mac_tbl,
 //	.agc_tbl = &rtw8822b_agc_tbl,
 //	.bb_tbl = &rtw8822b_bb_tbl,
@@ -809,31 +894,32 @@ enum rtw88_hci_type {
 };
 
 struct urtwm_softc;
-struct rtw88_dev;
+struct rtw_dev;
+
 
 /* ops for PCI, USB and SDIO */
 struct rtw88_hci_ops {
-//	int (*tx_write)(struct rtw88_dev *rtwdev,
+//	int (*tx_write)(struct rtw_dev *rtwdev,
 //	    struct rtw88_tx_pkt_info *pkt_info,
 //	    struct sk_buff *skb);
-//	void (*tx_kick_off)(struct rtw88_dev *rtwdev);
-//	void (*flush_queues)(struct rtw88_dev *rtwdev, u32 queues, bool drop);
-	int (*setup)(struct rtw88_dev *rtwdev);
-//	int (*start)(struct rtw88_dev *rtwdev);
-//	void (*stop)(struct rtw88_dev *rtwdev);
-//	void (*deep_ps)(struct rtw88_dev *rtwdev, bool enter);
-//	void (*link_ps)(struct rtw88_dev *rtwdev, bool enter);
-//	void (*interface_cfg)(struct rtw88_dev *rtwdev);
+//	void (*tx_kick_off)(struct rtw_dev *rtwdev);
+//	void (*flush_queues)(struct rtw_dev *rtwdev, u32 queues, bool drop);
+	int (*setup)(struct rtw_dev *rtwdev);
+//	int (*start)(struct rtw_dev *rtwdev);
+//	void (*stop)(struct rtw_dev *rtwdev);
+//	void (*deep_ps)(struct rtw_dev *rtwdev, bool enter);
+//	void (*link_ps)(struct rtw_dev *rtwdev, bool enter);
+//	void (*interface_cfg)(struct rtw_dev *rtwdev);
 //
-//	int (*write_data_rsvd_page)(struct rtw88_dev *rtwdev, u8 *buf, u32 size);
-//	int (*write_data_h2c)(struct rtw88_dev *rtwdev, u8 *buf, u32 size);
+//	int (*write_data_rsvd_page)(struct rtw_dev *rtwdev, u8 *buf, u32 size);
+//	int (*write_data_h2c)(struct rtw_dev *rtwdev, u8 *buf, u32 size);
 
-	uint8_t (*read8)(struct rtw88_dev *rtwdev, uint16_t addr);
-	uint16_t (*read16)(struct rtw88_dev *rtwdev, uint16_t addr);
-	uint32_t (*read32)(struct rtw88_dev *rtwdev, uint16_t addr);
-	int (*write8)(struct rtw88_dev *rtwdev, uint16_t addr, uint8_t val);
-	int (*write16)(struct rtw88_dev *rtwdev, uint16_t addr, uint16_t val);
-	int (*write32)(struct rtw88_dev *rtwdev, uint16_t addr, uint32_t val);
+	uint8_t (*read8)(struct rtw_dev *rtwdev, uint16_t addr);
+	uint16_t (*read16)(struct rtw_dev *rtwdev, uint16_t addr);
+	uint32_t (*read32)(struct rtw_dev *rtwdev, uint16_t addr);
+	int (*write8)(struct rtw_dev *rtwdev, uint16_t addr, uint8_t val);
+	int (*write16)(struct rtw_dev *rtwdev, uint16_t addr, uint16_t val);
+	int (*write32)(struct rtw_dev *rtwdev, uint16_t addr, uint32_t val);
 };
 
 
@@ -910,7 +996,7 @@ struct rtw88_hal {
 
 struct rtw_fw_state {
 //	const struct firmware *firmware;
-//	struct rtw88_dev *rtwdev;
+//	struct rtw_dev *rtwdev;
 //	struct completion completion;
 //	struct rtw_fwcd_desc fwcd_desc;
 //	u16 version;
@@ -925,7 +1011,7 @@ struct rtw_fw_state {
 };
 
 
-struct rtw88_dev {
+struct rtw_dev {
 //	struct ieee80211_hw *hw;
 //	struct device *dev;
 //
@@ -1009,7 +1095,7 @@ struct rtw88_dev {
 };
 
 struct rtw88_softc {
-	struct rtw88_dev		rtw_dev;
+	struct rtw_dev		rtw_dev;
 };
 
 struct urtwm_softc {
@@ -1024,73 +1110,79 @@ struct urtwm_softc {
 
 // }}}
 
-/* -------------------------------------------------------------------------- */
+// {{{ read/write//other operations
 
-// {{{ read/write/other operations
+#define rtw_read8 rtw88_read8
+#define rtw_read16 rtw88_read16
+#define rtw_read32 rtw88_read32
 
-inline int rtw88_chip_wcpu_11n(struct rtw88_dev *rtwdev)
+#define rtw_write8 rtw88_write8
+#define rtw_write16 rtw88_write16
+#define rtw_write32 rtw88_write32
+
+inline int rtw88_chip_wcpu_11n(struct rtw_dev *rtwdev)
 {
 	return rtwdev->chip->wlan_cpu == RTW88_WCPU_11N;
 }
 
-inline int rtw88_chip_wcpu_11ac(struct rtw88_dev *rtwdev)
+inline int rtw88_chip_wcpu_11ac(struct rtw_dev *rtwdev)
 {
 	return rtwdev->chip->wlan_cpu == RTW88_WCPU_11AC;
 }
 
 
-inline enum rtw88_hci_type rtw88_hci_type(struct rtw88_dev *rtwdev)
+inline enum rtw88_hci_type rtw88_hci_type(struct rtw_dev *rtwdev)
 {
 	return rtwdev->hci.type;
 }
 
 uint8_t
-rtw88_read8(struct rtw88_dev *rtwdev, uint32_t addr)
+rtw88_read8(struct rtw_dev *rtwdev, uint32_t addr)
 {
 	return rtwdev->hci.ops->read8(rtwdev, addr);
 }
 
 uint16_t
-rtw88_read16(struct rtw88_dev *rtwdev, uint32_t addr)
+rtw88_read16(struct rtw_dev *rtwdev, uint32_t addr)
 {
 	return rtwdev->hci.ops->read16(rtwdev, addr);
 }
 
 uint32_t
-rtw88_read32(struct rtw88_dev *rtwdev, uint32_t addr)
+rtw88_read32(struct rtw_dev *rtwdev, uint32_t addr)
 {
 	return rtwdev->hci.ops->read32(rtwdev, addr);
 }
 
 int
-rtw88_write8(struct rtw88_dev *rtwdev, uint32_t addr, uint8_t val)
+rtw88_write8(struct rtw_dev *rtwdev, uint32_t addr, uint8_t val)
 {
 	return rtwdev->hci.ops->write8(rtwdev, addr, val);
 }
 
 int
-rtw88_write16(struct rtw88_dev *rtwdev, uint32_t addr, uint16_t val)
+rtw88_write16(struct rtw_dev *rtwdev, uint32_t addr, uint16_t val)
 {
 	return rtwdev->hci.ops->write16(rtwdev, addr, val);
 }
 
 int
-rtw88_write32(struct rtw88_dev *rtwdev, uint32_t addr, uint16_t val)
+rtw88_write32(struct rtw_dev *rtwdev, uint32_t addr, uint16_t val)
 {
 	return rtwdev->hci.ops->write32(rtwdev, addr, val);
 }
 
-uint32_t urtwm_read_4(struct rtw88_dev *, uint16_t);
+uint32_t urtwm_read_4(struct rtw_dev *, uint16_t);
 
 int
-rtw88_usb_setup(struct rtw88_dev *rtwdev)
+rtw88_usb_setup(struct rtw_dev *rtwdev)
 {
 	/* empty function for rtw_hci_ops */
 	return 0;
 }
 
 inline void
-rtw88_write8_set(struct rtw88_dev *rtwdev, uint32_t addr, uint8_t bit)
+rtw88_write8_set(struct rtw_dev *rtwdev, uint32_t addr, uint8_t bit)
 {
 	uint8_t val;
 
@@ -1099,7 +1191,7 @@ rtw88_write8_set(struct rtw88_dev *rtwdev, uint32_t addr, uint8_t bit)
 }
 
 inline void
-rtw88_write16_clr(struct rtw88_dev *rtwdev, uint32_t addr, uint16_t bit)
+rtw88_write16_clr(struct rtw_dev *rtwdev, uint32_t addr, uint16_t bit)
 {
         uint16_t val;
 
@@ -1129,7 +1221,7 @@ urtwm_write_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 }
 
 int
-urtwm_write_8(struct rtw88_dev *rtwdev, uint16_t addr, uint8_t val)
+urtwm_write_8(struct rtw_dev *rtwdev, uint16_t addr, uint8_t val)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 
@@ -1137,7 +1229,7 @@ urtwm_write_8(struct rtw88_dev *rtwdev, uint16_t addr, uint8_t val)
 }
 
 int
-urtwm_write_16(struct rtw88_dev *rtwdev, uint16_t addr, uint16_t val)
+urtwm_write_16(struct rtw_dev *rtwdev, uint16_t addr, uint16_t val)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 
@@ -1146,7 +1238,7 @@ urtwm_write_16(struct rtw88_dev *rtwdev, uint16_t addr, uint16_t val)
 }
 
 int
-urtwm_write_32(struct rtw88_dev *rtwdev, uint16_t addr, uint32_t val)
+urtwm_write_32(struct rtw_dev *rtwdev, uint16_t addr, uint32_t val)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 
@@ -1169,7 +1261,7 @@ urtwm_read_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 }
 
 uint8_t
-urtwm_read_8(struct rtw88_dev *rtwdev, uint16_t addr)
+urtwm_read_8(struct rtw_dev *rtwdev, uint16_t addr)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 	uint8_t val;
@@ -1180,7 +1272,7 @@ urtwm_read_8(struct rtw88_dev *rtwdev, uint16_t addr)
 }
 
 uint16_t
-urtwm_read_16(struct rtw88_dev *rtwdev, uint16_t addr)
+urtwm_read_16(struct rtw_dev *rtwdev, uint16_t addr)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 	uint16_t val;
@@ -1191,7 +1283,7 @@ urtwm_read_16(struct rtw88_dev *rtwdev, uint16_t addr)
 }
 
 uint32_t
-urtwm_read_32(struct rtw88_dev *rtwdev, uint16_t addr)
+urtwm_read_32(struct rtw_dev *rtwdev, uint16_t addr)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 	uint32_t val;
@@ -1212,10 +1304,72 @@ struct rtw88_hci_ops rtw88_usb_ops = {
 };
 
 int
-rtw88_hci_setup(struct rtw88_dev *rtwdev)
+rtw88_hci_setup(struct rtw_dev *rtwdev)
 {
 	return rtwdev->hci.ops->setup(rtwdev);
 }
+
+static inline u32
+rtw_read32_mask(struct rtw_dev *rtwdev, u32 addr, u32 mask)
+{
+        u32 shift = ffs(mask);
+        u32 orig;
+        u32 ret;
+
+        orig = rtw_read32(rtwdev, addr);
+        ret = (orig & mask) >> shift;
+
+        return ret;
+}
+
+
+static inline void rtw_write8_set(struct rtw_dev *rtwdev, u32 addr, u8 bit)
+{
+        u8 val;
+
+        val = rtw_read8(rtwdev, addr);
+        rtw_write8(rtwdev, addr, val | bit);
+}
+
+//static inline void rtw_write16_set(struct rtw_dev *rtwdev, u32 addr, u16 bit)
+//{
+//        u16 val;
+//
+//        val = rtw_read16(rtwdev, addr);
+//        rtw_write16(rtwdev, addr, val | bit);
+//}
+//
+//static inline void rtw_write32_set(struct rtw_dev *rtwdev, u32 addr, u32 bit)
+//{
+//        u32 val;
+//
+//        val = rtw_read32(rtwdev, addr);
+//        rtw_write32(rtwdev, addr, val | bit);
+//}
+//
+static inline void rtw_write8_clr(struct rtw_dev *rtwdev, u32 addr, u8 bit)
+{
+	u8 val;
+
+	val = rtw_read8(rtwdev, addr);
+	rtw_write8(rtwdev, addr, val & ~bit);
+}
+//
+//static inline void rtw_write16_clr(struct rtw_dev *rtwdev, u32 addr, u16 bit)
+//{
+//        u16 val;
+//
+//        val = rtw_read16(rtwdev, addr);
+//        rtw_write16(rtwdev, addr, val & ~bit);
+//}
+//
+//static inline void rtw_write32_clr(struct rtw_dev *rtwdev, u32 addr, u32 bit)
+//{
+//        u32 val;
+//
+//        val = rtw_read32(rtwdev, addr);
+//        rtw_write32(rtwdev, addr, val & ~bit);
+//}
 
 // }}}
 
@@ -1259,15 +1413,234 @@ urtwm_task(void *arg)
 
 // }}}
 
-/* -------------------------------------------------------------------------- */
-
 // {{{ rtw88_download_firmware
+
+static void download_firmware_reset_platform(struct rtw_dev *rtwdev)
+{
+        rtw_write8_clr(rtwdev, REG_CPU_DMEM_CON + 2, BIT_WL_PLATFORM_RST >> 16);
+        rtw_write8_clr(rtwdev, REG_SYS_CLK_CTRL + 1, BIT_CPU_CLK_EN >> 8);
+        rtw_write8_set(rtwdev, REG_CPU_DMEM_CON + 2, BIT_WL_PLATFORM_RST >> 16);
+        rtw_write8_set(rtwdev, REG_SYS_CLK_CTRL + 1, BIT_CPU_CLK_EN >> 8);
+}
+
+static void download_firmware_reg_backup(struct rtw_dev *rtwdev,
+                                         struct rtw_backup_info *bckp)
+{
+        u8 tmp;
+        u8 bckp_idx = 0;
+
+        /* set HIQ to hi priority */
+        bckp[bckp_idx].len = 1;
+        bckp[bckp_idx].reg = REG_TXDMA_PQ_MAP + 1;
+        bckp[bckp_idx].val = rtw_read8(rtwdev, REG_TXDMA_PQ_MAP + 1);
+        bckp_idx++;
+        tmp = RTW_DMA_MAPPING_HIGH << 6;
+        rtw_write8(rtwdev, REG_TXDMA_PQ_MAP + 1, tmp);
+
+        /* DLFW only use HIQ, map HIQ to hi priority */
+        bckp[bckp_idx].len = 1;
+        bckp[bckp_idx].reg = REG_CR;
+        bckp[bckp_idx].val = rtw_read8(rtwdev, REG_CR);
+        bckp_idx++;
+        bckp[bckp_idx].len = 4;
+        bckp[bckp_idx].reg = REG_H2CQ_CSR;
+        bckp[bckp_idx].val = BIT_H2CQ_FULL;
+        bckp_idx++;
+        tmp = BIT_HCI_TXDMA_EN | BIT_TXDMA_EN;
+        rtw_write8(rtwdev, REG_CR, tmp);
+        rtw_write32(rtwdev, REG_H2CQ_CSR, BIT_H2CQ_FULL);
+
+        /* Config hi priority queue and public priority queue page number */
+        bckp[bckp_idx].len = 2;
+        bckp[bckp_idx].reg = REG_FIFOPAGE_INFO_1;
+        bckp[bckp_idx].val = rtw_read16(rtwdev, REG_FIFOPAGE_INFO_1);
+        bckp_idx++;
+        bckp[bckp_idx].len = 4;
+        bckp[bckp_idx].reg = REG_RQPN_CTRL_2;
+        bckp[bckp_idx].val = rtw_read32(rtwdev, REG_RQPN_CTRL_2) | BIT_LD_RQPN;
+        bckp_idx++;
+        rtw_write16(rtwdev, REG_FIFOPAGE_INFO_1, 0x200);
+        rtw_write32(rtwdev, REG_RQPN_CTRL_2, bckp[bckp_idx - 1].val);
+
+	//XXX:misha -- usb only
+//        if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_SDIO)
+//                rtw_read32(rtwdev, REG_SDIO_FREE_TXPG);
+
+        /* Disable beacon related functions */
+        tmp = rtw_read8(rtwdev, REG_BCN_CTRL);
+        bckp[bckp_idx].len = 1;
+        bckp[bckp_idx].reg = REG_BCN_CTRL;
+        bckp[bckp_idx].val = tmp;
+        bckp_idx++;
+        tmp = (u8)((tmp & (~BIT_EN_BCN_FUNCTION)) | BIT_DIS_TSF_UDT);
+        rtw_write8(rtwdev, REG_BCN_CTRL, tmp);
+
+//        WARN(bckp_idx != DLFW_RESTORE_REG_NUM, "wrong backup number\n");
+	if (bckp_idx != DLFW_RESTORE_REG_NUM)
+		printf("%s: wrong backup number: %i\n", __func__, bckp_idx);
+}
+
+
+static void wlan_cpu_enable(struct rtw_dev *rtwdev, bool enable)
+{
+        if (enable) {
+                /* cpu io interface enable */
+                rtw_write8_set(rtwdev, REG_RSV_CTRL + 1, BIT_WLMCU_IOIF);
+
+                /* cpu enable */
+                rtw_write8_set(rtwdev, REG_SYS_FUNC_EN + 1, BIT_FEN_CPUEN);
+        } else {
+                /* cpu io interface disable */
+                rtw_write8_clr(rtwdev, REG_SYS_FUNC_EN + 1, BIT_FEN_CPUEN);
+
+                /* cpu disable */
+                rtw_write8_clr(rtwdev, REG_RSV_CTRL + 1, BIT_WLMCU_IOIF);
+        }
+}
+
+
+bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target)
+{
+        u32 cnt;
+
+        for (cnt = 0; cnt < 1000; cnt++) {
+                if (rtw_read32_mask(rtwdev, addr, mask) == target)
+                        return true;
+
+		// XXX:misha udelay?
+//                udelay(10);
+		DELAY(10);
+        }
+
+        return false;
+}
+
+bool ltecoex_read_reg(struct rtw_dev *rtwdev, u16 offset, u32 *val)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        const struct rtw_ltecoex_addr *ltecoex = chip->ltecoex_addr;
+
+        if (!check_hw_ready(rtwdev, ltecoex->ctrl, LTECOEX_READY, 1))
+                return false;
+
+        rtw_write32(rtwdev, ltecoex->ctrl, 0x800F0000 | offset);
+        *val = rtw_read32(rtwdev, ltecoex->rdata);
+
+        return true;
+}
+
+static bool check_firmware_size(const u8 *data, u32 size)
+{
+	const struct rtw_fw_hdr *fw_hdr = (const struct rtw_fw_hdr *)data;
+	u32 dmem_size;
+	u32 imem_size;
+	u32 emem_size;
+	u32 real_size;
+
+	dmem_size = le32_to_cpu(fw_hdr->dmem_size);
+	imem_size = le32_to_cpu(fw_hdr->imem_size);
+	emem_size = (fw_hdr->mem_usage & BIT(4)) ?
+		    le32_to_cpu(fw_hdr->emem_size) : 0;
+
+	dmem_size += FW_HDR_CHKSUM_SIZE;
+	imem_size += FW_HDR_CHKSUM_SIZE;
+	emem_size += emem_size ? FW_HDR_CHKSUM_SIZE : 0;
+	real_size = FW_HDR_SIZE + dmem_size + imem_size + emem_size;
+	if (real_size != size)
+		return false;
+
+	return true;
+}
+
+static int __rtw_download_firmware(struct rtw_dev *rtwdev,
+				   struct rtw_fw_state *fw)
+{
+	struct rtw_backup_info bckp[DLFW_RESTORE_REG_NUM];
+	const u8 *data = fw->fwdata;
+	u32 size = fw->fwsize;
+	u32 ltecoex_bckp;
+//	int ret;
+
+	if (!check_firmware_size(data, size))
+		return -EINVAL;
+//
+	if (!ltecoex_read_reg(rtwdev, 0x38, &ltecoex_bckp))
+		return -EBUSY;
+//
+	wlan_cpu_enable(rtwdev, false);
+//
+	download_firmware_reg_backup(rtwdev, bckp);
+	download_firmware_reset_platform(rtwdev);
+//
+//	ret = start_download_firmware(rtwdev, data, size);
+//	if (ret)
+//		goto dlfw_fail;
+//
+//	download_firmware_reg_restore(rtwdev, bckp, DLFW_RESTORE_REG_NUM);
+//
+//	download_firmware_end_flow(rtwdev);
+//
+//	wlan_cpu_enable(rtwdev, true);
+//
+//	if (!ltecoex_reg_write(rtwdev, 0x38, ltecoex_bckp)) {
+//		ret = -EBUSY;
+//		goto dlfw_fail;
+//	}
+//
+//	ret = download_firmware_validate(rtwdev);
+//	if (ret)
+//		goto dlfw_fail;
+//
+//	/* reset desc and index */
+//	rtw_hci_setup(rtwdev);
+//
+//	rtwdev->h2c.last_box_num = 0;
+//	rtwdev->h2c.seq = 0;
+//
+//	set_bit(RTW_FLAG_FW_RUNNING, rtwdev->flags);
+//
+	return 0;
+//
+//dlfw_fail:
+//	/* Disable FWDL_EN */
+//	rtw_write8_clr(rtwdev, REG_MCUFW_CTRL, BIT_MCUFWDL_EN);
+//	rtw_write8_set(rtwdev, REG_SYS_FUNC_EN + 1, BIT_FEN_CPUEN);
+//
+//	return ret;
+}
+
+static
+int _rtw_download_firmware(struct rtw_dev *rtwdev, struct rtw_fw_state *fw)
+{
+	// XXX:misha -- we work with AC device only for now
+//	if (rtw_chip_wcpu_11n(rtwdev))
+//		return __rtw_download_firmware_legacy(rtwdev, fw);
+
+	return __rtw_download_firmware(rtwdev, fw);
+}
+
+int rtw_download_firmware(struct rtw_dev *rtwdev, struct rtw_fw_state *fw)
+{
+	int ret;
+
+	ret = _rtw_download_firmware(rtwdev, fw);
+	if (ret)
+		return ret;
+
+	// XXX:misha -- not applicable for urtwm
+//	if (rtw_hci_type(rtwdev) == RTW_HCI_TYPE_PCIE &&
+//	    rtwdev->chip->id == RTW_CHIP_TYPE_8821C)
+//		rtw_fw_set_recover_bt_device(rtwdev);
+
+	return 0;
+}
 
 // }}}
 
 // {{{ rtw88_mac_power_on
+
 int
-__rtw88_mac_init_system_cfg(struct rtw88_dev *rtwdev)
+__rtw88_mac_init_system_cfg(struct rtw_dev *rtwdev)
 {
 	uint8_t sys_func_en = rtwdev->chip->sys_func_en;
 	uint8_t value8;
@@ -1293,7 +1666,7 @@ __rtw88_mac_init_system_cfg(struct rtw88_dev *rtwdev)
 }
 
 int
-__rtw88_mac_init_system_cfg_legacy(struct rtw88_dev *rtwdev)
+__rtw88_mac_init_system_cfg_legacy(struct rtw_dev *rtwdev)
 {
 	rtw88_write8(rtwdev, RTW88_REG_CR, 0xff);
 	DELAY(2 * 1000);
@@ -1309,7 +1682,7 @@ __rtw88_mac_init_system_cfg_legacy(struct rtw88_dev *rtwdev)
 }
 
 int
-rtw88_mac_init_system_cfg(struct rtw88_dev *rtwdev)
+rtw88_mac_init_system_cfg(struct rtw_dev *rtwdev)
 {
 	if (rtw88_chip_wcpu_11n(rtwdev))
 		return __rtw88_mac_init_system_cfg_legacy(rtwdev);
@@ -1378,7 +1751,7 @@ timevaladd(struct timeval *t1, const struct timeval *t2)
 })
 
 int
-rtw88_do_pwr_poll_cmd(struct rtw88_dev *rtwdev, uint32_t addr, uint32_t mask,
+rtw88_do_pwr_poll_cmd(struct rtw_dev *rtwdev, uint32_t addr, uint32_t mask,
     uint32_t target)
 {
 	uint32_t val;
@@ -1392,7 +1765,7 @@ rtw88_do_pwr_poll_cmd(struct rtw88_dev *rtwdev, uint32_t addr, uint32_t mask,
 
 
 int
-rtw88_pwr_cmd_polling(struct rtw88_dev *rtwdev, const struct rtw88_pwr_seq_cmd *cmd)
+rtw88_pwr_cmd_polling(struct rtw_dev *rtwdev, const struct rtw88_pwr_seq_cmd *cmd)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 //	uint8_t value;
@@ -1427,7 +1800,7 @@ err:
 	return EBUSY;
 }
 
-int rtw88_sub_pwr_seq_parser(struct rtw88_dev *rtwdev, uint8_t intf_mask,
+int rtw88_sub_pwr_seq_parser(struct rtw_dev *rtwdev, uint8_t intf_mask,
     uint8_t cut_mask, const struct rtw88_pwr_seq_cmd *cmd)
 {
 	const struct rtw88_pwr_seq_cmd *cur_cmd;
@@ -1472,7 +1845,7 @@ int rtw88_sub_pwr_seq_parser(struct rtw88_dev *rtwdev, uint8_t intf_mask,
 }
 
 int
-rtw88_pwr_seq_parser(struct rtw88_dev *rtwdev,
+rtw88_pwr_seq_parser(struct rtw_dev *rtwdev,
     const struct rtw88_pwr_seq_cmd **cmd_seq)
 {
 	const struct rtw88_pwr_seq_cmd *cmd;
@@ -1514,7 +1887,7 @@ rtw88_pwr_seq_parser(struct rtw88_dev *rtwdev,
 }
 
 int
-rtw88_mac_power_switch(struct rtw88_dev *rtwdev, int pwr_on)
+rtw88_mac_power_switch(struct rtw_dev *rtwdev, int pwr_on)
 {
 	const struct rtw88_chip_info *chip = rtwdev->chip;
 	const struct rtw88_pwr_seq_cmd **pwr_seq;
@@ -1567,7 +1940,7 @@ rtw88_mac_power_switch(struct rtw88_dev *rtwdev, int pwr_on)
 }
 
 int
-rtw88_mac_pre_system_cfg(struct rtw88_dev *rtwdev)
+rtw88_mac_pre_system_cfg(struct rtw_dev *rtwdev)
 {
 //	unsigned int retry;
 	uint32_t value32;
@@ -1647,7 +2020,7 @@ rtw88_mac_pre_system_cfg(struct rtw88_dev *rtwdev)
 
 
 int
-rtw88_mac_power_on(struct rtw88_dev *rtwdev)
+rtw88_mac_power_on(struct rtw_dev *rtwdev)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 	int ret = 0;
@@ -1683,10 +2056,15 @@ err:
 	return ret;
 }
 
+void rtw_mac_power_off(struct rtw_dev *rtwdev)
+{
+        rtw88_mac_power_switch(rtwdev, false);
+}
+
 // }}}
 
 int
-rtw88_chip_efuse_enable(struct rtw88_dev *rtwdev)
+rtw88_chip_efuse_enable(struct rtw_dev *rtwdev)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 	struct rtw_fw_state *fw = &rtwdev->fw;
@@ -1724,24 +2102,24 @@ rtw88_chip_efuse_enable(struct rtw88_dev *rtwdev)
 	};
 
 
-//	ret = rtw88_download_firmware(rtwdev, fw);
-//	if (ret) {
-//		printf("%s: %s: failed to download firmware, error=%i\n",
-//		    sc->sc_pdev->dv_xname, __func__, ret);
-//		goto err_off;
-//	}
+	ret = rtw_download_firmware(rtwdev, fw);
+	if (ret) {
+		printf("%s: %s: failed to download firmware, error=%i\n",
+		    sc->sc_pdev->dv_xname, __func__, ret);
+		goto err_off;
+	}
+
+	return 0;
 //
-//	return 0;
-//
-//err_off:
-//	rtw88_mac_power_off(rtwdev);
-//
+err_off:
+	rtw_mac_power_off(rtwdev);
+
 err:
 	return ret;
 }
 
 int
-rtw88_chip_efuse_info_setup(struct rtw88_dev *rtwdev) {
+rtw88_chip_efuse_info_setup(struct rtw_dev *rtwdev) {
 	struct urtwm_softc *sc = rtwdev->cookie;
 //	struct rtw88_efuse *efuse = &rtwdev->efuse;
 	int ret;
@@ -1808,7 +2186,7 @@ rtw88_chip_efuse_info_setup(struct rtw88_dev *rtwdev) {
 /* -------------------------------------------------------------------------- */
 
 int
-rtw88_chip_parameter_setup(struct rtw88_dev *rtwdev)
+rtw88_chip_parameter_setup(struct rtw_dev *rtwdev)
 {
 	struct urtwm_softc *sc = rtwdev->cookie;
 	const struct rtw88_chip_info *chip = rtwdev->chip;
@@ -1874,7 +2252,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 {
 	struct urtwm_softc *sc = (struct urtwm_softc *)self;
 	struct rtw88_softc *sc_sc = &sc->sc_sc;
-	struct rtw88_dev *rtwdev = &sc_sc->rtw_dev;
+	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	struct usb_attach_arg *uaa = aux;
 	int ret;
 
