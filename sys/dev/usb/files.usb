@@ -441,6 +441,10 @@ device	urtwn: ether, ifnet, ifmedia, wlan, firmload
 attach	urtwn at uhub
 file	dev/usb/if_urtwn.c		urtwn
 
+# Realtek RTW88 driver
+attach	rtwm at uhub with rtwm_usb: firmload
+file	dev/usb/if_rtwm_usb.c		rtwm_usb
+
 # Realtek RTL8188SU/RTL8191SU/RTL8192SU
 device	rsu: ether, ifnet, ifmedia, wlan, firmload
 attach	rsu at uhub

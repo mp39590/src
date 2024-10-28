@@ -361,6 +361,7 @@ audio*	at utvfu?
 udl*	at uhub?		# DisplayLink USB displays
 wsdisplay* at udl?
 bwfm*	at uhub?		# Broadcom FullMAC
+rtwm*	at uhub?		# Realtek RTW88 driver
 
 puc*	at pci?			# PCI "universal" communication device
 com*	at cardbus?

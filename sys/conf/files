@@ -397,6 +397,85 @@ file	dev/ic/rtw.c			rtw
 device	rtwn: ifnet, wlan, firmload
 file	dev/ic/rtwn.c			rtwn | urtwn
 
+# Realtek RTW88 driver
+device	rtwm: ether, ifnet, ifmedia, wlan, firmload
+#file	dev/ic/rtw88/bf.c		rtwm | urtwm
+#file	dev/ic/rtw88/bf.h		rtwm | urtwm
+#file	dev/ic/rtw88/coex.c		rtwm | urtwm
+#file	dev/ic/rtw88/coex.h		rtwm | urtwm
+#file	dev/ic/rtw88/debug.c		rtwm | urtwm
+#file	dev/ic/rtw88/debug.h		rtwm | urtwm
+#file	dev/ic/rtw88/efuse.c		rtwm | urtwm
+#file	dev/ic/rtw88/efuse.h		rtwm | urtwm
+#file	dev/ic/rtw88/fw.c   		rtwm | urtwm
+#file	dev/ic/rtw88/fw.h   		rtwm | urtwm
+#file	dev/ic/rtw88/hci.h  		rtwm | urtwm
+#file	dev/ic/rtw88/mac.c  		rtwm | urtwm
+#file	dev/ic/rtw88/mac.h  		rtwm | urtwm
+#file	dev/ic/rtw88/mac80211.c		rtwm | urtwm
+#file	dev/ic/rtw88/main.c		rtwm | urtwm
+#file	dev/ic/rtw88/main.h		rtwm | urtwm
+#file	dev/ic/rtw88/pci.c		rtwm | urtwm
+#file	dev/ic/rtw88/pci.h		rtwm | urtwm
+#file	dev/ic/rtw88/phy.c		rtwm | urtwm
+#file	dev/ic/rtw88/phy.h		rtwm | urtwm
+#file	dev/ic/rtw88/ps.c		rtwm | urtwm
+#file	dev/ic/rtw88/ps.h		rtwm | urtwm
+#file	dev/ic/rtw88/reg.h		rtwm | urtwm
+#file	dev/ic/rtw88/regd.c		rtwm | urtwm
+#file	dev/ic/rtw88/regd.h		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8703b.c		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8703b.h		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8703b_tables.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8703b_tables.h	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723cs.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723d.c		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723d.h		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723d_table.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723d_table.h	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723de.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723ds.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723du.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723x.c		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8723x.h		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8821c.c		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8821c.h		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8821c_table.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8821c_table.h	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8821ce.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8821cs.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8821cu.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822b.c		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822b.h		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822b_table.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822b_table.h	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822be.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822bs.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822bu.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822c.c		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822c.h		rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822c_table.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822c_table.h	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822ce.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822cs.c	rtwm | urtwm
+#file	dev/ic/rtw88/rtw8822cu.c	rtwm | urtwm
+#file	dev/ic/rtw88/rx.c		rtwm | urtwm
+#file	dev/ic/rtw88/rx.h		rtwm | urtwm
+#file	dev/ic/rtw88/sar.c		rtwm | urtwm
+#file	dev/ic/rtw88/sar.h		rtwm | urtwm
+#file	dev/ic/rtw88/sdio.c		rtwm | urtwm
+#file	dev/ic/rtw88/sdio.h		rtwm | urtwm
+#file	dev/ic/rtw88/sec.c		rtwm | urtwm
+#file	dev/ic/rtw88/sec.h		rtwm | urtwm
+#file	dev/ic/rtw88/tx.c		rtwm | urtwm
+#file	dev/ic/rtw88/tx.h		rtwm | urtwm
+#file	dev/ic/rtw88/usb.c		rtwm | urtwm
+#file	dev/ic/rtw88/usb.h		rtwm | urtwm
+#file	dev/ic/rtw88/util.c		rtwm | urtwm
+#file	dev/ic/rtw88/util.h		rtwm | urtwm
+#file	dev/ic/rtw88/wow.c		rtwm | urtwm
+#file	dev/ic/rtw88/wow.h		rtwm | urtwm
+
 # Ralink RT2500/RT2600 802.11
 device	ral: ether, ifnet, ifmedia, firmload, wlan
 file	dev/ic/rt2560.c			ral
