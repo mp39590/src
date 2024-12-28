@@ -1638,6 +1638,7 @@ void fill_txdesc_checksum_common(u8 *txdesc, size_t words)
 	while (words--)
 		chksum ^= *data++;
 
+	printf("%s: chksum=0x%x\n", __func__, chksum);
 	le32p_replace_bits(&tx_desc->w7, __le16_to_cpu(chksum),
 			   RTW_TX_DESC_W7_TXDESC_CHECKSUM);
 }
@@ -1750,6 +1751,7 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 	struct urtwm_softc *sc = rtwdev->cookie;
 	struct usbd_xfer                *xfer;
 	struct usbd_pipe *pipe;
+	uint8_t *buf;
 	int error;
         int ep = qsel_to_ep(rtwdev, qsel);
         printf("%s: ep=%i\n", __func__, ep);
@@ -1771,16 +1773,22 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 //        return ret;
 
 	xfer = usbd_alloc_xfer(sc->sc_udev);
-	pipe = sc->tx_pipe[ep];
 	if (xfer == NULL) {
 		printf("%s: could not alloc xfer\n", __func__);
 		return ENOMEM;
 	}
+	buf = usbd_alloc_buffer(xfer, 8192);
+	if (buf == NULL) {
+		printf("%s: could not alloc buffer\n", __func__);
+		return ENOMEM;
+	}
+	pipe = sc->tx_pipe[ep];
 //	for (int i = 0; i < m->m_len; i++) {
 //		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 //	}
-	usbd_setup_xfer(xfer, pipe, NULL, m->m_data, m->m_len,
-	    /*USBD_FORCE_SHORT_XFER | USBD_NO_COPY*/ 0, 5000 /*timeout*/,
+	memcpy(buf, m->m_data, m->m_len);
+	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
+	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, 7000 /*timeout*/,
 	    urtwm_txeof);
 	error = usbd_transfer(xfer);
 	printf("%s: error=%i\n", __func__, error);
@@ -1945,7 +1953,7 @@ bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target)
 
 		// XXX:misha udelay?
 //		  udelay(10);
-		DELAY(1000);
+		DELAY(10);
 	}
 
 	printf("%s: target=%d\n", __func__, target);
@@ -3171,6 +3179,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 				return EINVAL;
 			}
 			out_no = ed->bEndpointAddress;
+			printf("%s: num_out_pipes=%i out_no=%i\n", __func__, num_out_pipes, out_no);
 			error = usbd_open_pipe(sc->sc_iface, out_no, 0,
 			    &sc->tx_pipe[num_out_pipes++]);
 			if (error != 0) {
