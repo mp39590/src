@@ -2337,7 +2337,7 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 	struct rtw_backup_info bckp[DLFW_RESTORE_REG_NUM];
 	const u8 *data = fw->fwdata;
 	u32 size = fw->fwsize;
-//	u32 ltecoex_bckp;
+	u32 ltecoex_bckp;
 	int ret;
 
 	if (!check_firmware_size(data, size)) {
@@ -2346,10 +2346,11 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 	};
 //
 	// TODO: returns EBUSY
-//	if (!ltecoex_read_reg(rtwdev, 0x38, &ltecoex_bckp)) {
-//		printf("%s: !ltecoex_read_reg\n", __func__);
-//		return -EBUSY;
-//	}
+	if (!ltecoex_read_reg(rtwdev, 0x38, &ltecoex_bckp)) {
+		printf("%s: !ltecoex_read_reg\n", __func__);
+		return -EBUSY;
+	} else
+		printf("%s: ltecoex works!\n", __func__);
 //
 	wlan_cpu_enable(rtwdev, false);
 //
