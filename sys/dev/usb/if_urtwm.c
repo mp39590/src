@@ -2467,6 +2467,7 @@ __rtw88_mac_init_system_cfg(struct rtw_dev *rtwdev)
 	tmp = rtw88_read32(rtwdev, RTW88_REG_MCUFW_CTRL);
 	printf("%s: tmp=0x%x\n", __func__, tmp);
 	if (tmp & RTW88_BIT_BOOT_FSPI_EN) {
+		printf("%s: RTW88_BIT_BOOT_FSPI_EN\n", __func__);
 		rtw88_write32(rtwdev, RTW88_REG_MCUFW_CTRL, tmp & (~RTW88_BIT_BOOT_FSPI_EN));
 		value = rtw88_read32(rtwdev, RTW88_REG_GPIO_MUXCFG) & (~RTW88_BIT_FSPI_EN);
 		rtw88_write32(rtwdev, RTW88_REG_GPIO_MUXCFG, value);
@@ -2840,6 +2841,7 @@ rtw88_mac_power_on(struct rtw_dev *rtwdev)
 		goto err;
 
 	ret = rtw88_mac_power_switch(rtwdev, 1);
+	printf("%s: rtw88_mac_power_switch=%i\n", __func__, ret);
 	if (ret == EALREADY) {
 		rtw88_mac_power_switch(rtwdev, false);
 
