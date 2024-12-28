@@ -1713,12 +1713,81 @@ void rtw_tx_fill_tx_desc(struct rtw_tx_pkt_info *pkt_info, u8 *data)
 }
 
 
+//static int qsel_to_ep(struct rtw_usb *rtwusb, unsigned int qsel)
+static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
+{
+	struct urtwm_softc *sc = rtwdev->cookie;
+//        if (qsel >= ARRAY_SIZE(rtwusb->qsel_to_ep))
+//                return -EINVAL;
+
+	if (qsel >= nitems(sc->qsel_to_ep))
+		return -EINVAL;
+
+        return sc->qsel_to_ep[qsel];
+}
+
+void
+urtwm_txeof(struct usbd_xfer *xfer, void *priv,
+    usbd_status status)
+{
+	printf("%s: TX status=%d\n", __func__, status);
+}
+//static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct sk_buff *skb,
+//                              usb_complete_t cb, void *context)
+static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
+{
+//        struct rtw_usb *rtwusb = rtw_get_usb_priv(rtwdev);
+//        struct usb_device *usbd = rtwusb->udev;
+//        struct urb *urb;
+//        unsigned int pipe;
+//        int ret;
+	struct urtwm_softc *sc = rtwdev->cookie;
+	struct usbd_xfer                *xfer;
+	struct usbd_pipe *pipe;
+	int error;
+        int ep = qsel_to_ep(rtwdev, qsel);
+        ep = 1;
+        printf("%s: ep=%i\n", __func__, ep);
+//
+	if (ep < 0)
+		return ep;
+
+//        pipe = usb_sndbulkpipe(usbd, rtwusb->out_ep[ep]);
+//        urb = usb_alloc_urb(0, GFP_ATOMIC);
+//        if (!urb)
+//                return -ENOMEM;
+//
+//        usb_fill_bulk_urb(urb, usbd, pipe, skb->data, skb->len, cb, context);
+//        urb->transfer_flags |= URB_ZERO_PACKET;
+//        ret = usb_submit_urb(urb, GFP_ATOMIC);
+//
+//        usb_free_urb(urb);
+//
+//        return ret;
+
+	xfer = usbd_alloc_xfer(sc->sc_udev);
+	pipe = sc->tx_pipe[ep];
+	if (xfer == NULL) {
+		printf("%s: could not alloc xfer\n", __func__);
+		return ENOMEM;
+	}
+	usbd_setup_xfer(xfer, pipe, NULL, m->m_data, m->m_len,
+	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, 5000 /*timeout*/,
+	    urtwm_txeof);
+	error = usbd_transfer(xfer);
+	printf("%s: error=%i\n", __func__, error);
+
+	return 0;
+
+}
+
 static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 			      struct rtw_tx_pkt_info *pkt_info,
 			      u8 *buf)
 {
 	const struct rtw_chip_info *chip = rtwdev->chip;
 //	  struct sk_buff *skb;
+	struct mbuf *m;
 	unsigned int size;
 	u8 qsel;
 	int ret = 0;
@@ -1728,9 +1797,18 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	qsel = pkt_info->qsel;
 
 	// FIXME:misha -- must free, M_NOWAIT?
-	// FINISH MARK XXX
 	data = malloc(chip->tx_pkt_desc_sz + size, M_DEVBUF, M_NOWAIT);
-
+	// TODO: must be free'ed
+	m = m_get(M_NOWAIT, M_DEVBUF);
+	if (m == NULL) {
+		printf("%s: m_get == NULL\n", __func__);
+		return ENOMEM;
+	}
+	m->m_data = data;
+	m->m_len = chip->tx_pkt_desc_sz + size;
+	m->m_nextpkt = NULL;
+	m->m_type = 0;
+	m->m_flags = 0;
 
 //	  skb = dev_alloc_skb(chip->tx_pkt_desc_sz + size);
 //	  if (unlikely(!skb))
@@ -1745,8 +1823,7 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
 
-//	  ret = rtw_usb_write_port(rtwdev, qsel, skb,
-//				   rtw_usb_write_port_complete, skb);
+	ret = rtw_usb_write_port(rtwdev, qsel, m);
 //	  if (unlikely(ret))
 //		  rtw_err(rtwdev, "failed to do USB write, ret=%d\n", ret);
 
@@ -1857,7 +1934,7 @@ bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target)
 
 		// XXX:misha udelay?
 //		  udelay(10);
-		DELAY(10);
+		DELAY(1000);
 	}
 
 	return false;
@@ -2249,14 +2326,19 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 	struct rtw_backup_info bckp[DLFW_RESTORE_REG_NUM];
 	const u8 *data = fw->fwdata;
 	u32 size = fw->fwsize;
-	u32 ltecoex_bckp;
+//	u32 ltecoex_bckp;
 	int ret;
 
-	if (!check_firmware_size(data, size))
+	if (!check_firmware_size(data, size)) {
+		printf("%s: invalid fw size\n", __func__);
 		return -EINVAL;
+	};
 //
-	if (!ltecoex_read_reg(rtwdev, 0x38, &ltecoex_bckp))
-		return -EBUSY;
+	// TODO: returns EBUSY
+//	if (!ltecoex_read_reg(rtwdev, 0x38, &ltecoex_bckp)) {
+//		printf("%s: !ltecoex_read_reg\n", __func__);
+//		return -EBUSY;
+//	}
 //
 	wlan_cpu_enable(rtwdev, false);
 //
@@ -2264,8 +2346,10 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 	download_firmware_reset_platform(rtwdev);
 //
 	ret = start_download_firmware(rtwdev, data, size);
-	if (ret)
+	if (ret) {
+		printf("%s: start_download_firmware=%d\n", __func__, ret);
 		goto dlfw_fail;
+	};
 //
 //	download_firmware_reg_restore(rtwdev, bckp, DLFW_RESTORE_REG_NUM);
 //
@@ -2796,7 +2880,8 @@ rtw88_chip_efuse_enable(struct rtw_dev *rtwdev)
 	ret = rtw_download_firmware(rtwdev, fw);
 	if (ret) {
 		printf("%s: %s: failed to download firmware, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, ret);
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+		    "HARDCODED NOT NULL", __func__, ret);
 		goto err_off;
 	}
 
@@ -2811,7 +2896,7 @@ err:
 
 int
 rtw88_chip_efuse_info_setup(struct rtw_dev *rtwdev) {
-	struct urtwm_softc *sc = rtwdev->cookie;
+//	struct urtwm_softc *sc = rtwdev->cookie;
 //	struct rtw88_efuse *efuse = &rtwdev->efuse;
 	int ret;
 
@@ -2819,7 +2904,8 @@ rtw88_chip_efuse_info_setup(struct rtw_dev *rtwdev) {
 	ret = rtw88_chip_efuse_enable(rtwdev);
 	if (ret) {
 		printf("%s: %s: rtw_chip_efuse_enable failed, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, ret);
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+		    "HARDCODED NOT NULL", __func__, ret);
 		return ret;
 	};
 
@@ -3199,7 +3285,8 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	if (ret) {
 //		rtw_err(rtwdev, "failed to init USB interface\n");
 		printf("%s: %s: failed to init USB interface, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, ret);
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+		    "HARDCODED NOT NULL", __func__, ret);
 		return;
 		// TODO: cleanup
 //		goto err_deinit_core;
@@ -3220,16 +3307,18 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	ret = rtw88_chip_parameter_setup(rtwdev);
 	if (ret) {
 		printf("%s: %s: failed to setup chip parameters, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, ret);
+//		    sc->sc_pdev->dv_xname, __func__, ret);
+		    "HARDCODED NOT NULL", __func__, ret);
 		return;
 	}
 
-//	ret = rtw88_chip_efuse_info_setup(rtwdev);
-//	if (ret) {
-//		printf("%s: %s: failed to setup chip efuse info, error=%i\n",
+	ret = rtw88_chip_efuse_info_setup(rtwdev);
+	if (ret) {
+		printf("%s: %s: failed to setup chip efuse info, error=%i\n",
 //		    sc->sc_pdev->dv_xname, __func__, ret);
-//		return;
-//	}
+		    "HARDCODED NOT NULL", __func__, ret);
+		return;
+	}
 	return;
 }
 
