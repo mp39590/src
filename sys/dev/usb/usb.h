@@ -36,6 +36,8 @@
 #ifndef _USB_H_
 #define _USB_H_
 
+#define USB_DEBUG
+
 #include <sys/types.h>
 
 #include <sys/ioctl.h>
