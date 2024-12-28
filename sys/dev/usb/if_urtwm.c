@@ -1734,6 +1734,12 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
 }
 
 void
+urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
+    usbd_status status)
+{
+	printf("%s: TX status=%d\n", __func__, status);
+}
+void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
@@ -2456,6 +2462,7 @@ __rtw88_mac_init_system_cfg(struct rtw_dev *rtwdev)
 
 	/* disable boot-from-flash for driver's DL FW */
 	tmp = rtw88_read32(rtwdev, RTW88_REG_MCUFW_CTRL);
+	printf("%s: tmp=0x%x\n", __func__, tmp);
 	if (tmp & RTW88_BIT_BOOT_FSPI_EN) {
 		rtw88_write32(rtwdev, RTW88_REG_MCUFW_CTRL, tmp & (~RTW88_BIT_BOOT_FSPI_EN));
 		value = rtw88_read32(rtwdev, RTW88_REG_GPIO_MUXCFG) & (~RTW88_BIT_FSPI_EN);
@@ -3151,6 +3158,27 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 				    __func__, error);
 				return EINVAL;
 			}
+			// FIXME: just checking
+			struct usbd_xfer                *xfer;
+			uint8_t *buf;
+			xfer = usbd_alloc_xfer(sc->sc_udev);
+			if (xfer == NULL) {
+				printf("%s: could not alloc xfer\n", __func__);
+				return ENOMEM;
+			}
+			buf = usbd_alloc_buffer(xfer, 16 * 1024);
+			if (buf == NULL) {
+				printf("%s: could not alloc buffer\n", __func__);
+				return ENOMEM;
+			}
+			//	for (int i = 0; i < m->m_len; i++) {
+			//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
+			//	}
+			usbd_setup_xfer(xfer, sc->rx_pipe, NULL, buf, 16 * 1024,
+			    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
+			    urtwm_rxeof);
+			error = usbd_transfer(xfer);
+
 		}
 
 		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN &&
