@@ -1790,10 +1790,12 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 		return ENOMEM;
 	}
 	pipe = sc->tx_pipe[ep];
+	usbd_dump_pipe(pipe);
 //	for (int i = 0; i < m->m_len; i++) {
 //		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 //	}
 	memcpy(buf, m->m_data, m->m_len);
+	printf("%s: m->m_len=%d\n", __func__, m->m_len);
 	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
 	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
 	    urtwm_txeof);
