@@ -61,44 +61,44 @@ typedef int64_t __le64;
 #define cut_version_to_mask(cut) (0x1 << ((cut) + 1))
 
 #define DLFW_RESTORE_REG_NUM 6
-#define FW_HDR_CHKSUM_SIZE              8
-#define FW_HDR_SIZE                     64
+#define FW_HDR_CHKSUM_SIZE		8
+#define FW_HDR_SIZE			64
 
-#define REG_WL2LTECOEX_INDIRECT_ACCESS_CTRL_V1          0x1700
-#define REG_WL2LTECOEX_INDIRECT_ACCESS_WRITE_DATA_V1    0x1704
-#define REG_WL2LTECOEX_INDIRECT_ACCESS_READ_DATA_V1     0x1708
-#define LTECOEX_READY           BIT(29)
+#define REG_WL2LTECOEX_INDIRECT_ACCESS_CTRL_V1		0x1700
+#define REG_WL2LTECOEX_INDIRECT_ACCESS_WRITE_DATA_V1	0x1704
+#define REG_WL2LTECOEX_INDIRECT_ACCESS_READ_DATA_V1	0x1708
+#define LTECOEX_READY		BIT(29)
 #define LTECOEX_ACCESS_CTRL REG_WL2LTECOEX_INDIRECT_ACCESS_CTRL_V1
 #define LTECOEX_WRITE_DATA REG_WL2LTECOEX_INDIRECT_ACCESS_WRITE_DATA_V1
 #define LTECOEX_READ_DATA REG_WL2LTECOEX_INDIRECT_ACCESS_READ_DATA_V1
 
-#define REG_RSV_CTRL            0x001C
-#define BIT_WLMCU_IOIF          BIT(0)
-#define REG_SYS_FUNC_EN         0x0002
-#define BIT_FEN_CPUEN           BIT(2)
+#define REG_RSV_CTRL		0x001C
+#define BIT_WLMCU_IOIF		BIT(0)
+#define REG_SYS_FUNC_EN		0x0002
+#define BIT_FEN_CPUEN		BIT(2)
 
-#define RTW_HW_PORT_NUM         5
+#define RTW_HW_PORT_NUM		5
 #define cut_version_to_mask(cut) (0x1 << ((cut) + 1))
-#define DDMA_POLLING_COUNT      1000
-#define C2H_PKT_BUF             256
-#define REPORT_BUF              128
-#define PHY_STATUS_SIZE         4
-#define ILLEGAL_KEY_GROUP       0xFAAAAA00
+#define DDMA_POLLING_COUNT	1000
+#define C2H_PKT_BUF		256
+#define REPORT_BUF		128
+#define PHY_STATUS_SIZE		4
+#define ILLEGAL_KEY_GROUP	0xFAAAAA00
 
 /* HW memory address */
-#define OCPBASE_RXBUF_FW_88XX           0x18680000
-#define OCPBASE_TXBUF_88XX              0x18780000
-#define OCPBASE_ROM_88XX                0x00000000
-#define OCPBASE_IMEM_88XX               0x00030000
-#define OCPBASE_DMEM_88XX               0x00200000
-#define OCPBASE_EMEM_88XX               0x00100000
+#define OCPBASE_RXBUF_FW_88XX		0x18680000
+#define OCPBASE_TXBUF_88XX		0x18780000
+#define OCPBASE_ROM_88XX		0x00000000
+#define OCPBASE_IMEM_88XX		0x00030000
+#define OCPBASE_DMEM_88XX		0x00200000
+#define OCPBASE_EMEM_88XX		0x00100000
 
-#define RSVD_PG_DRV_NUM                 16
-#define RSVD_PG_H2C_EXTRAINFO_NUM       24
-#define RSVD_PG_H2C_STATICINFO_NUM      8
-#define RSVD_PG_H2CQ_NUM                8
-#define RSVD_PG_CPU_INSTRUCTION_NUM     0
-#define RSVD_PG_FW_TXBUF_NUM            4
+#define RSVD_PG_DRV_NUM			16
+#define RSVD_PG_H2C_EXTRAINFO_NUM	24
+#define RSVD_PG_H2C_STATICINFO_NUM	8
+#define RSVD_PG_H2CQ_NUM		8
+#define RSVD_PG_CPU_INSTRUCTION_NUM	0
+#define RSVD_PG_FW_TXBUF_NUM		4
 
 #include <dev/ic/rtw88/reg.h>
 
@@ -107,224 +107,224 @@ typedef int64_t __le64;
 // {{{ data structures
 
 enum rtw_dma_mapping {
-        RTW_DMA_MAPPING_EXTRA   = 0,
-        RTW_DMA_MAPPING_LOW     = 1,
-        RTW_DMA_MAPPING_NORMAL  = 2,
-        RTW_DMA_MAPPING_HIGH    = 3,
+	RTW_DMA_MAPPING_EXTRA	= 0,
+	RTW_DMA_MAPPING_LOW	= 1,
+	RTW_DMA_MAPPING_NORMAL	= 2,
+	RTW_DMA_MAPPING_HIGH	= 3,
 
-        RTW_DMA_MAPPING_MAX,
-        RTW_DMA_MAPPING_UNDEF,
+	RTW_DMA_MAPPING_MAX,
+	RTW_DMA_MAPPING_UNDEF,
 };
 
 struct rtw_rqpn {
-        enum rtw_dma_mapping dma_map_vo;
-        enum rtw_dma_mapping dma_map_vi;
-        enum rtw_dma_mapping dma_map_be;
-        enum rtw_dma_mapping dma_map_bk;
-        enum rtw_dma_mapping dma_map_mg;
-        enum rtw_dma_mapping dma_map_hi;
+	enum rtw_dma_mapping dma_map_vo;
+	enum rtw_dma_mapping dma_map_vi;
+	enum rtw_dma_mapping dma_map_be;
+	enum rtw_dma_mapping dma_map_bk;
+	enum rtw_dma_mapping dma_map_mg;
+	enum rtw_dma_mapping dma_map_hi;
 };
 
 
 struct rtw_fifo_conf {
-        /* tx fifo information */
-        u16 rsvd_boundary;
-        u16 rsvd_pg_num;
-        u16 rsvd_drv_pg_num;
-        u16 txff_pg_num;
-        u16 acq_pg_num;
-        u16 rsvd_drv_addr;
-        u16 rsvd_h2c_info_addr;
-        u16 rsvd_h2c_sta_info_addr;
-        u16 rsvd_h2cq_addr;
-        u16 rsvd_cpu_instr_addr;
-        u16 rsvd_fw_txbuf_addr;
-        u16 rsvd_csibuf_addr;
-        const struct rtw_rqpn *rqpn;
+	/* tx fifo information */
+	u16 rsvd_boundary;
+	u16 rsvd_pg_num;
+	u16 rsvd_drv_pg_num;
+	u16 txff_pg_num;
+	u16 acq_pg_num;
+	u16 rsvd_drv_addr;
+	u16 rsvd_h2c_info_addr;
+	u16 rsvd_h2c_sta_info_addr;
+	u16 rsvd_h2cq_addr;
+	u16 rsvd_cpu_instr_addr;
+	u16 rsvd_fw_txbuf_addr;
+	u16 rsvd_csibuf_addr;
+	const struct rtw_rqpn *rqpn;
 };
 
 enum rtw_trx_desc_rate {
-        DESC_RATE1M     = 0x00,
-        DESC_RATE2M     = 0x01,
-        DESC_RATE5_5M   = 0x02,
-        DESC_RATE11M    = 0x03,
+	DESC_RATE1M	= 0x00,
+	DESC_RATE2M	= 0x01,
+	DESC_RATE5_5M	= 0x02,
+	DESC_RATE11M	= 0x03,
 
-        DESC_RATE6M     = 0x04,
-        DESC_RATE9M     = 0x05,
-        DESC_RATE12M    = 0x06,
-        DESC_RATE18M    = 0x07,
-        DESC_RATE24M    = 0x08,
-        DESC_RATE36M    = 0x09,
-        DESC_RATE48M    = 0x0a,
-        DESC_RATE54M    = 0x0b,
+	DESC_RATE6M	= 0x04,
+	DESC_RATE9M	= 0x05,
+	DESC_RATE12M	= 0x06,
+	DESC_RATE18M	= 0x07,
+	DESC_RATE24M	= 0x08,
+	DESC_RATE36M	= 0x09,
+	DESC_RATE48M	= 0x0a,
+	DESC_RATE54M	= 0x0b,
 
-        DESC_RATEMCS0   = 0x0c,
-        DESC_RATEMCS1   = 0x0d,
-        DESC_RATEMCS2   = 0x0e,
-        DESC_RATEMCS3   = 0x0f,
-        DESC_RATEMCS4   = 0x10,
-        DESC_RATEMCS5   = 0x11,
-        DESC_RATEMCS6   = 0x12,
-        DESC_RATEMCS7   = 0x13,
-        DESC_RATEMCS8   = 0x14,
-        DESC_RATEMCS9   = 0x15,
-        DESC_RATEMCS10  = 0x16,
-        DESC_RATEMCS11  = 0x17,
-        DESC_RATEMCS12  = 0x18,
-        DESC_RATEMCS13  = 0x19,
-        DESC_RATEMCS14  = 0x1a,
-        DESC_RATEMCS15  = 0x1b,
-        DESC_RATEMCS16  = 0x1c,
-        DESC_RATEMCS17  = 0x1d,
-        DESC_RATEMCS18  = 0x1e,
-        DESC_RATEMCS19  = 0x1f,
-        DESC_RATEMCS20  = 0x20,
-        DESC_RATEMCS21  = 0x21,
-        DESC_RATEMCS22  = 0x22,
-        DESC_RATEMCS23  = 0x23,
-        DESC_RATEMCS24  = 0x24,
-        DESC_RATEMCS25  = 0x25,
-        DESC_RATEMCS26  = 0x26,
-        DESC_RATEMCS27  = 0x27,
-        DESC_RATEMCS28  = 0x28,
-        DESC_RATEMCS29  = 0x29,
-        DESC_RATEMCS30  = 0x2a,
-        DESC_RATEMCS31  = 0x2b,
+	DESC_RATEMCS0	= 0x0c,
+	DESC_RATEMCS1	= 0x0d,
+	DESC_RATEMCS2	= 0x0e,
+	DESC_RATEMCS3	= 0x0f,
+	DESC_RATEMCS4	= 0x10,
+	DESC_RATEMCS5	= 0x11,
+	DESC_RATEMCS6	= 0x12,
+	DESC_RATEMCS7	= 0x13,
+	DESC_RATEMCS8	= 0x14,
+	DESC_RATEMCS9	= 0x15,
+	DESC_RATEMCS10	= 0x16,
+	DESC_RATEMCS11	= 0x17,
+	DESC_RATEMCS12	= 0x18,
+	DESC_RATEMCS13	= 0x19,
+	DESC_RATEMCS14	= 0x1a,
+	DESC_RATEMCS15	= 0x1b,
+	DESC_RATEMCS16	= 0x1c,
+	DESC_RATEMCS17	= 0x1d,
+	DESC_RATEMCS18	= 0x1e,
+	DESC_RATEMCS19	= 0x1f,
+	DESC_RATEMCS20	= 0x20,
+	DESC_RATEMCS21	= 0x21,
+	DESC_RATEMCS22	= 0x22,
+	DESC_RATEMCS23	= 0x23,
+	DESC_RATEMCS24	= 0x24,
+	DESC_RATEMCS25	= 0x25,
+	DESC_RATEMCS26	= 0x26,
+	DESC_RATEMCS27	= 0x27,
+	DESC_RATEMCS28	= 0x28,
+	DESC_RATEMCS29	= 0x29,
+	DESC_RATEMCS30	= 0x2a,
+	DESC_RATEMCS31	= 0x2b,
 
-        DESC_RATEVHT1SS_MCS0    = 0x2c,
-        DESC_RATEVHT1SS_MCS1    = 0x2d,
-        DESC_RATEVHT1SS_MCS2    = 0x2e,
-        DESC_RATEVHT1SS_MCS3    = 0x2f,
-        DESC_RATEVHT1SS_MCS4    = 0x30,
-        DESC_RATEVHT1SS_MCS5    = 0x31,
-        DESC_RATEVHT1SS_MCS6    = 0x32,
-        DESC_RATEVHT1SS_MCS7    = 0x33,
-        DESC_RATEVHT1SS_MCS8    = 0x34,
-        DESC_RATEVHT1SS_MCS9    = 0x35,
+	DESC_RATEVHT1SS_MCS0	= 0x2c,
+	DESC_RATEVHT1SS_MCS1	= 0x2d,
+	DESC_RATEVHT1SS_MCS2	= 0x2e,
+	DESC_RATEVHT1SS_MCS3	= 0x2f,
+	DESC_RATEVHT1SS_MCS4	= 0x30,
+	DESC_RATEVHT1SS_MCS5	= 0x31,
+	DESC_RATEVHT1SS_MCS6	= 0x32,
+	DESC_RATEVHT1SS_MCS7	= 0x33,
+	DESC_RATEVHT1SS_MCS8	= 0x34,
+	DESC_RATEVHT1SS_MCS9	= 0x35,
 
-        DESC_RATEVHT2SS_MCS0    = 0x36,
-        DESC_RATEVHT2SS_MCS1    = 0x37,
-        DESC_RATEVHT2SS_MCS2    = 0x38,
-        DESC_RATEVHT2SS_MCS3    = 0x39,
-        DESC_RATEVHT2SS_MCS4    = 0x3a,
-        DESC_RATEVHT2SS_MCS5    = 0x3b,
-        DESC_RATEVHT2SS_MCS6    = 0x3c,
-        DESC_RATEVHT2SS_MCS7    = 0x3d,
-        DESC_RATEVHT2SS_MCS8    = 0x3e,
-        DESC_RATEVHT2SS_MCS9    = 0x3f,
+	DESC_RATEVHT2SS_MCS0	= 0x36,
+	DESC_RATEVHT2SS_MCS1	= 0x37,
+	DESC_RATEVHT2SS_MCS2	= 0x38,
+	DESC_RATEVHT2SS_MCS3	= 0x39,
+	DESC_RATEVHT2SS_MCS4	= 0x3a,
+	DESC_RATEVHT2SS_MCS5	= 0x3b,
+	DESC_RATEVHT2SS_MCS6	= 0x3c,
+	DESC_RATEVHT2SS_MCS7	= 0x3d,
+	DESC_RATEVHT2SS_MCS8	= 0x3e,
+	DESC_RATEVHT2SS_MCS9	= 0x3f,
 
-        DESC_RATEVHT3SS_MCS0    = 0x40,
-        DESC_RATEVHT3SS_MCS1    = 0x41,
-        DESC_RATEVHT3SS_MCS2    = 0x42,
-        DESC_RATEVHT3SS_MCS3    = 0x43,
-        DESC_RATEVHT3SS_MCS4    = 0x44,
-        DESC_RATEVHT3SS_MCS5    = 0x45,
-        DESC_RATEVHT3SS_MCS6    = 0x46,
-        DESC_RATEVHT3SS_MCS7    = 0x47,
-        DESC_RATEVHT3SS_MCS8    = 0x48,
-        DESC_RATEVHT3SS_MCS9    = 0x49,
+	DESC_RATEVHT3SS_MCS0	= 0x40,
+	DESC_RATEVHT3SS_MCS1	= 0x41,
+	DESC_RATEVHT3SS_MCS2	= 0x42,
+	DESC_RATEVHT3SS_MCS3	= 0x43,
+	DESC_RATEVHT3SS_MCS4	= 0x44,
+	DESC_RATEVHT3SS_MCS5	= 0x45,
+	DESC_RATEVHT3SS_MCS6	= 0x46,
+	DESC_RATEVHT3SS_MCS7	= 0x47,
+	DESC_RATEVHT3SS_MCS8	= 0x48,
+	DESC_RATEVHT3SS_MCS9	= 0x49,
 
-        DESC_RATEVHT4SS_MCS0    = 0x4a,
-        DESC_RATEVHT4SS_MCS1    = 0x4b,
-        DESC_RATEVHT4SS_MCS2    = 0x4c,
-        DESC_RATEVHT4SS_MCS3    = 0x4d,
-        DESC_RATEVHT4SS_MCS4    = 0x4e,
-        DESC_RATEVHT4SS_MCS5    = 0x4f,
-        DESC_RATEVHT4SS_MCS6    = 0x50,
-        DESC_RATEVHT4SS_MCS7    = 0x51,
-        DESC_RATEVHT4SS_MCS8    = 0x52,
-        DESC_RATEVHT4SS_MCS9    = 0x53,
+	DESC_RATEVHT4SS_MCS0	= 0x4a,
+	DESC_RATEVHT4SS_MCS1	= 0x4b,
+	DESC_RATEVHT4SS_MCS2	= 0x4c,
+	DESC_RATEVHT4SS_MCS3	= 0x4d,
+	DESC_RATEVHT4SS_MCS4	= 0x4e,
+	DESC_RATEVHT4SS_MCS5	= 0x4f,
+	DESC_RATEVHT4SS_MCS6	= 0x50,
+	DESC_RATEVHT4SS_MCS7	= 0x51,
+	DESC_RATEVHT4SS_MCS8	= 0x52,
+	DESC_RATEVHT4SS_MCS9	= 0x53,
 
-        DESC_RATE_MAX,
+	DESC_RATE_MAX,
 };
 
 
 struct rtw_tx_desc {
-        __le32 w0;
-        __le32 w1;
-        __le32 w2;
-        __le32 w3;
-        __le32 w4;
-        __le32 w5;
-        __le32 w6;
-        __le32 w7;
-        __le32 w8;
-        __le32 w9;
+	__le32 w0;
+	__le32 w1;
+	__le32 w2;
+	__le32 w3;
+	__le32 w4;
+	__le32 w5;
+	__le32 w6;
+	__le32 w7;
+	__le32 w8;
+	__le32 w9;
 } __packed;
 
 
 enum rtw_tx_desc_queue_select {
-        TX_DESC_QSEL_TID0       = 0,
-        TX_DESC_QSEL_TID1       = 1,
-        TX_DESC_QSEL_TID2       = 2,
-        TX_DESC_QSEL_TID3       = 3,
-        TX_DESC_QSEL_TID4       = 4,
-        TX_DESC_QSEL_TID5       = 5,
-        TX_DESC_QSEL_TID6       = 6,
-        TX_DESC_QSEL_TID7       = 7,
-        TX_DESC_QSEL_TID8       = 8,
-        TX_DESC_QSEL_TID9       = 9,
-        TX_DESC_QSEL_TID10      = 10,
-        TX_DESC_QSEL_TID11      = 11,
-        TX_DESC_QSEL_TID12      = 12,
-        TX_DESC_QSEL_TID13      = 13,
-        TX_DESC_QSEL_TID14      = 14,
-        TX_DESC_QSEL_TID15      = 15,
-        TX_DESC_QSEL_BEACON     = 16,
-        TX_DESC_QSEL_HIGH       = 17,
-        TX_DESC_QSEL_MGMT       = 18,
-        TX_DESC_QSEL_H2C        = 19,
+	TX_DESC_QSEL_TID0	= 0,
+	TX_DESC_QSEL_TID1	= 1,
+	TX_DESC_QSEL_TID2	= 2,
+	TX_DESC_QSEL_TID3	= 3,
+	TX_DESC_QSEL_TID4	= 4,
+	TX_DESC_QSEL_TID5	= 5,
+	TX_DESC_QSEL_TID6	= 6,
+	TX_DESC_QSEL_TID7	= 7,
+	TX_DESC_QSEL_TID8	= 8,
+	TX_DESC_QSEL_TID9	= 9,
+	TX_DESC_QSEL_TID10	= 10,
+	TX_DESC_QSEL_TID11	= 11,
+	TX_DESC_QSEL_TID12	= 12,
+	TX_DESC_QSEL_TID13	= 13,
+	TX_DESC_QSEL_TID14	= 14,
+	TX_DESC_QSEL_TID15	= 15,
+	TX_DESC_QSEL_BEACON	= 16,
+	TX_DESC_QSEL_HIGH	= 17,
+	TX_DESC_QSEL_MGMT	= 18,
+	TX_DESC_QSEL_H2C	= 19,
 };
 
 struct rtw_tx_pkt_info {
-        u32 tx_pkt_size;
-        u8 offset;
-        u8 pkt_offset;
-        u8 tim_offset;
-        u8 mac_id;
-        u8 rate_id;
-        u8 rate;
-        u8 qsel;
-        u8 bw;
-        u8 sec_type;
-        u8 sn;
-        bool ampdu_en;
-        u8 ampdu_factor;
-        u8 ampdu_density;
-        u16 seq;
-        bool stbc;
-        bool ldpc;
-        bool dis_rate_fallback;
-        bool bmc;
-        bool use_rate;
-        bool ls;
-        bool fs;
-        bool short_gi;
-        bool report;
-        bool rts;
-        bool dis_qselseq;
-        bool en_hwseq;
-        u8 hw_ssn_sel;
-        bool nav_use_hdr;
-        bool bt_null;
+	u32 tx_pkt_size;
+	u8 offset;
+	u8 pkt_offset;
+	u8 tim_offset;
+	u8 mac_id;
+	u8 rate_id;
+	u8 rate;
+	u8 qsel;
+	u8 bw;
+	u8 sec_type;
+	u8 sn;
+	bool ampdu_en;
+	u8 ampdu_factor;
+	u8 ampdu_density;
+	u16 seq;
+	bool stbc;
+	bool ldpc;
+	bool dis_rate_fallback;
+	bool bmc;
+	bool use_rate;
+	bool ls;
+	bool fs;
+	bool short_gi;
+	bool report;
+	bool rts;
+	bool dis_qselseq;
+	bool en_hwseq;
+	u8 hw_ssn_sel;
+	bool nav_use_hdr;
+	bool bt_null;
 };
 
 struct rtw_ltecoex_addr {
-        u32 ctrl;
-        u32 wdata;
-        u32 rdata;
+	u32 ctrl;
+	u32 wdata;
+	u32 rdata;
 };
 
 static const struct rtw_ltecoex_addr rtw8822b_ltecoex_addr = {
-        .ctrl = LTECOEX_ACCESS_CTRL,
-        .wdata = LTECOEX_WRITE_DATA,
-        .rdata = LTECOEX_READ_DATA,
+	.ctrl = LTECOEX_ACCESS_CTRL,
+	.wdata = LTECOEX_WRITE_DATA,
+	.rdata = LTECOEX_READ_DATA,
 };
 
 struct rtw_backup_info {
-        u8 len;
-        u32 reg;
-        u32 val;
+	u8 len;
+	u32 reg;
+	u32 val;
 };
 
 struct rtw_fw_hdr {
@@ -448,7 +448,7 @@ struct rtw88_chip_info {
 	uint8_t sys_func_en;
 	const struct rtw88_pwr_seq_cmd **pwr_on_seq;
 	const struct rtw88_pwr_seq_cmd **pwr_off_seq;
-//	const struct rtw_rqpn *rqpn_table;
+	const struct rtw_rqpn *rqpn_table;
 //	const struct rtw_prioq_addrs *prioq_addrs;
 //	const struct rtw_page_table *page_table;
 //	const struct rtw_intf_phy_para_table *intf_table;
@@ -932,6 +932,23 @@ const struct rtw88_pwr_seq_cmd *card_disable_flow_8822b[] = {
 	NULL
 };
 
+static const struct rtw_rqpn rqpn_table_8822b[] = {
+        {RTW_DMA_MAPPING_NORMAL, RTW_DMA_MAPPING_NORMAL,
+         RTW_DMA_MAPPING_LOW, RTW_DMA_MAPPING_LOW,
+         RTW_DMA_MAPPING_EXTRA, RTW_DMA_MAPPING_HIGH},
+        {RTW_DMA_MAPPING_NORMAL, RTW_DMA_MAPPING_NORMAL,
+         RTW_DMA_MAPPING_LOW, RTW_DMA_MAPPING_LOW,
+         RTW_DMA_MAPPING_EXTRA, RTW_DMA_MAPPING_HIGH},
+        {RTW_DMA_MAPPING_NORMAL, RTW_DMA_MAPPING_NORMAL,
+         RTW_DMA_MAPPING_NORMAL, RTW_DMA_MAPPING_HIGH,
+         RTW_DMA_MAPPING_HIGH, RTW_DMA_MAPPING_HIGH},
+        {RTW_DMA_MAPPING_NORMAL, RTW_DMA_MAPPING_NORMAL,
+         RTW_DMA_MAPPING_LOW, RTW_DMA_MAPPING_LOW,
+         RTW_DMA_MAPPING_HIGH, RTW_DMA_MAPPING_HIGH},
+        {RTW_DMA_MAPPING_NORMAL, RTW_DMA_MAPPING_NORMAL,
+         RTW_DMA_MAPPING_LOW, RTW_DMA_MAPPING_LOW,
+         RTW_DMA_MAPPING_EXTRA, RTW_DMA_MAPPING_HIGH},
+};
 
 const struct rtw88_chip_info rtw8822b_hw_spec = {
 //	.ops = &rtw8822b_ops,
@@ -963,7 +980,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 	.pwr_on_seq = card_enable_flow_8822b,
 	.pwr_off_seq = card_disable_flow_8822b,
 //	.page_table = page_table_8822b,
-//	.rqpn_table = rqpn_table_8822b,
+	.rqpn_table = rqpn_table_8822b,
 //	.prioq_addrs = &prioq_addrs_8822b,
 //	.intf_table = &phy_para_table_8822b,
 //	.dig = rtw8822b_dig,
@@ -1327,6 +1344,12 @@ struct urtwm_softc {
 	struct usbd_device		*sc_udev;
 	struct usbd_interface		*sc_iface;
 	struct usb_task			sc_task;
+	struct usbd_pipe		*rx_pipe;
+#define RTW_USB_EP_MAX			4
+	struct usbd_pipe		*tx_pipe[RTW_USB_EP_MAX];
+	struct usbd_pipe		*int_pipe;
+#define TX_DESC_QSEL_MAX                20
+	int				qsel_to_ep[TX_DESC_QSEL_MAX];
 };
 
 // }}}
@@ -1416,10 +1439,10 @@ rtw88_write8_set(struct rtw_dev *rtwdev, uint32_t addr, uint8_t bit)
 inline void
 rtw88_write16_clr(struct rtw_dev *rtwdev, uint32_t addr, uint16_t bit)
 {
-        uint16_t val;
+	uint16_t val;
 
-        val = rtw88_read16(rtwdev, addr);
-        rtw88_write16(rtwdev, addr, val & ~bit);
+	val = rtw88_read16(rtwdev, addr);
+	rtw88_write16(rtwdev, addr, val & ~bit);
 }
 
 int urtwm_match(struct device *, void *, void *);
@@ -1526,14 +1549,14 @@ static inline uint64_t ___bitmask(uint64_t f) { return (f / ___lsb(f)); }
 
 
 #ifdef __LP64__
-#define BITS_PER_LONG           64
+#define BITS_PER_LONG		64
 #else
-#define BITS_PER_LONG           32
+#define BITS_PER_LONG		32
 #endif
 
-#define BITS_PER_LONG_LONG      64
+#define BITS_PER_LONG_LONG	64
 
-#define GENMASK(h, l)           (((~0UL) >> (BITS_PER_LONG - (h) - 1)) & ((~0UL) << (l)))
+#define GENMASK(h, l)		(((~0UL) >> (BITS_PER_LONG - (h) - 1)) & ((~0UL) << (l)))
 
 #define RTW_TX_DESC_W0_TXPKTSIZE GENMASK(15, 0)
 #define RTW_TX_DESC_W0_OFFSET GENMASK(23, 16)
@@ -1571,25 +1594,25 @@ static inline uint64_t ___bitmask(uint64_t f) { return (f / ___lsb(f)); }
 #define RTW_TX_DESC_W9_TIM_EN BIT(7)
 #define RTW_TX_DESC_W9_TIM_OFFSET GENMASK(6, 0)
 
-#define _leX_encode_bits(_n)                                            \
-        static __inline uint ## _n ## _t                                \
-        le ## _n ## _encode_bits(__le ## _n v, uint ## _n ## _t f)      \
-        {                                                               \
-                return (cpu_to_le ## _n((v & ___bitmask(f)) * ___lsb(f))); \
-        }
+#define _leX_encode_bits(_n)						\
+	static __inline uint ## _n ## _t				\
+	le ## _n ## _encode_bits(__le ## _n v, uint ## _n ## _t f)	\
+	{								\
+		return (cpu_to_le ## _n((v & ___bitmask(f)) * ___lsb(f))); \
+	}
 
 //_leX_encode_bits(64)
 _leX_encode_bits(32)
 //_leX_encode_bits(16)
 
-#define _leXp_replace_bits(_n)                                          \
-        static __inline void                                            \
-        le ## _n ## p_replace_bits(uint ## _n ## _t *p,                 \
-            uint ## _n ## _t v, uint ## _n ## _t f)                     \
-        {                                                               \
-                *p = (*p & ~(cpu_to_le ## _n(f))) |                     \
-                     le ## _n ## _encode_bits(v, f);                    \
-        }
+#define _leXp_replace_bits(_n)						\
+	static __inline void						\
+	le ## _n ## p_replace_bits(uint ## _n ## _t *p,			\
+	    uint ## _n ## _t v, uint ## _n ## _t f)			\
+	{								\
+		*p = (*p & ~(cpu_to_le ## _n(f))) |			\
+		     le ## _n ## _encode_bits(v, f);			\
+	}
 
 //_leXp_replace_bits(64)
 _leXp_replace_bits(32)
@@ -1600,147 +1623,147 @@ _leXp_replace_bits(32)
 static inline
 void fill_txdesc_checksum_common(u8 *txdesc, size_t words)
 {
-        __le16 chksum = 0;
-        __le16 *data = (__le16 *)(txdesc);
-        struct rtw_tx_desc *tx_desc = (struct rtw_tx_desc *)txdesc;
+	__le16 chksum = 0;
+	__le16 *data = (__le16 *)(txdesc);
+	struct rtw_tx_desc *tx_desc = (struct rtw_tx_desc *)txdesc;
 
-        le32p_replace_bits(&tx_desc->w7, 0, RTW_TX_DESC_W7_TXDESC_CHECKSUM);
+	le32p_replace_bits(&tx_desc->w7, 0, RTW_TX_DESC_W7_TXDESC_CHECKSUM);
 
-        while (words--)
-                chksum ^= *data++;
+	while (words--)
+		chksum ^= *data++;
 
-        le32p_replace_bits(&tx_desc->w7, __le16_to_cpu(chksum),
-                           RTW_TX_DESC_W7_TXDESC_CHECKSUM);
+	le32p_replace_bits(&tx_desc->w7, __le16_to_cpu(chksum),
+			   RTW_TX_DESC_W7_TXDESC_CHECKSUM);
 }
 
 static void rtw8822b_fill_txdesc_checksum(struct rtw_dev *rtwdev,
-                                          struct rtw_tx_pkt_info *pkt_info,
-                                          u8 *txdesc)
+					  struct rtw_tx_pkt_info *pkt_info,
+					  u8 *txdesc)
 {
-        size_t words = 32 / 2; /* calculate the first 32 bytes (16 words) */
+	size_t words = 32 / 2; /* calculate the first 32 bytes (16 words) */
 
-        fill_txdesc_checksum_common(txdesc, words);
+	fill_txdesc_checksum_common(txdesc, words);
 }
 
 static inline void rtw_tx_fill_txdesc_checksum(struct rtw_dev *rtwdev,
-                                               struct rtw_tx_pkt_info *pkt_info,
-                                               u8 *txdesc)
+					       struct rtw_tx_pkt_info *pkt_info,
+					       u8 *txdesc)
 {
-//        const struct rtw_chip_info *chip = rtwdev->chip;
+//	  const struct rtw_chip_info *chip = rtwdev->chip;
 
 	// FIXME:misha -- use real indirrect
-//        chip->ops->fill_txdesc_checksum(rtwdev, pkt_info, txdesc);
+//	  chip->ops->fill_txdesc_checksum(rtwdev, pkt_info, txdesc);
 	rtw8822b_fill_txdesc_checksum(rtwdev, pkt_info, txdesc);
 }
 
 void rtw_tx_fill_tx_desc(struct rtw_tx_pkt_info *pkt_info, u8 *data)
 {
-        struct rtw_tx_desc *tx_desc = (struct rtw_tx_desc *)data;
-        bool more_data = false;
+	struct rtw_tx_desc *tx_desc = (struct rtw_tx_desc *)data;
+	bool more_data = false;
 
-        if (pkt_info->qsel == TX_DESC_QSEL_HIGH)
-                more_data = true;
+	if (pkt_info->qsel == TX_DESC_QSEL_HIGH)
+		more_data = true;
 
-        tx_desc->w0 = le32_encode_bits(pkt_info->tx_pkt_size, RTW_TX_DESC_W0_TXPKTSIZE) |
-                      le32_encode_bits(pkt_info->offset, RTW_TX_DESC_W0_OFFSET) |
-                      le32_encode_bits(pkt_info->bmc, RTW_TX_DESC_W0_BMC) |
-                      le32_encode_bits(pkt_info->ls, RTW_TX_DESC_W0_LS) |
-                      le32_encode_bits(pkt_info->dis_qselseq, RTW_TX_DESC_W0_DISQSELSEQ);
+	tx_desc->w0 = le32_encode_bits(pkt_info->tx_pkt_size, RTW_TX_DESC_W0_TXPKTSIZE) |
+		      le32_encode_bits(pkt_info->offset, RTW_TX_DESC_W0_OFFSET) |
+		      le32_encode_bits(pkt_info->bmc, RTW_TX_DESC_W0_BMC) |
+		      le32_encode_bits(pkt_info->ls, RTW_TX_DESC_W0_LS) |
+		      le32_encode_bits(pkt_info->dis_qselseq, RTW_TX_DESC_W0_DISQSELSEQ);
 
-        tx_desc->w1 = le32_encode_bits(pkt_info->mac_id, RTW_TX_DESC_W1_MACID) |
-                      le32_encode_bits(pkt_info->qsel, RTW_TX_DESC_W1_QSEL) |
-                      le32_encode_bits(pkt_info->rate_id, RTW_TX_DESC_W1_RATE_ID) |
-                      le32_encode_bits(pkt_info->sec_type, RTW_TX_DESC_W1_SEC_TYPE) |
-                      le32_encode_bits(pkt_info->pkt_offset, RTW_TX_DESC_W1_PKT_OFFSET) |
-                      le32_encode_bits(more_data, RTW_TX_DESC_W1_MORE_DATA);
+	tx_desc->w1 = le32_encode_bits(pkt_info->mac_id, RTW_TX_DESC_W1_MACID) |
+		      le32_encode_bits(pkt_info->qsel, RTW_TX_DESC_W1_QSEL) |
+		      le32_encode_bits(pkt_info->rate_id, RTW_TX_DESC_W1_RATE_ID) |
+		      le32_encode_bits(pkt_info->sec_type, RTW_TX_DESC_W1_SEC_TYPE) |
+		      le32_encode_bits(pkt_info->pkt_offset, RTW_TX_DESC_W1_PKT_OFFSET) |
+		      le32_encode_bits(more_data, RTW_TX_DESC_W1_MORE_DATA);
 
-        tx_desc->w2 = le32_encode_bits(pkt_info->ampdu_en, RTW_TX_DESC_W2_AGG_EN) |
-                      le32_encode_bits(pkt_info->report, RTW_TX_DESC_W2_SPE_RPT) |
-                      le32_encode_bits(pkt_info->ampdu_density, RTW_TX_DESC_W2_AMPDU_DEN) |
-                      le32_encode_bits(pkt_info->bt_null, RTW_TX_DESC_W2_BT_NULL);
+	tx_desc->w2 = le32_encode_bits(pkt_info->ampdu_en, RTW_TX_DESC_W2_AGG_EN) |
+		      le32_encode_bits(pkt_info->report, RTW_TX_DESC_W2_SPE_RPT) |
+		      le32_encode_bits(pkt_info->ampdu_density, RTW_TX_DESC_W2_AMPDU_DEN) |
+		      le32_encode_bits(pkt_info->bt_null, RTW_TX_DESC_W2_BT_NULL);
 
-        tx_desc->w3 = le32_encode_bits(pkt_info->hw_ssn_sel, RTW_TX_DESC_W3_HW_SSN_SEL) |
-                      le32_encode_bits(pkt_info->use_rate, RTW_TX_DESC_W3_USE_RATE) |
-                      le32_encode_bits(pkt_info->dis_rate_fallback, RTW_TX_DESC_W3_DISDATAFB) |
-                      le32_encode_bits(pkt_info->rts, RTW_TX_DESC_W3_USE_RTS) |
-                      le32_encode_bits(pkt_info->nav_use_hdr, RTW_TX_DESC_W3_NAVUSEHDR) |
-                      le32_encode_bits(pkt_info->ampdu_factor, RTW_TX_DESC_W3_MAX_AGG_NUM);
+	tx_desc->w3 = le32_encode_bits(pkt_info->hw_ssn_sel, RTW_TX_DESC_W3_HW_SSN_SEL) |
+		      le32_encode_bits(pkt_info->use_rate, RTW_TX_DESC_W3_USE_RATE) |
+		      le32_encode_bits(pkt_info->dis_rate_fallback, RTW_TX_DESC_W3_DISDATAFB) |
+		      le32_encode_bits(pkt_info->rts, RTW_TX_DESC_W3_USE_RTS) |
+		      le32_encode_bits(pkt_info->nav_use_hdr, RTW_TX_DESC_W3_NAVUSEHDR) |
+		      le32_encode_bits(pkt_info->ampdu_factor, RTW_TX_DESC_W3_MAX_AGG_NUM);
 
-        tx_desc->w4 = le32_encode_bits(pkt_info->rate, RTW_TX_DESC_W4_DATARATE);
+	tx_desc->w4 = le32_encode_bits(pkt_info->rate, RTW_TX_DESC_W4_DATARATE);
 
-        tx_desc->w5 = le32_encode_bits(pkt_info->short_gi, RTW_TX_DESC_W5_DATA_SHORT) |
-                      le32_encode_bits(pkt_info->bw, RTW_TX_DESC_W5_DATA_BW) |
-                      le32_encode_bits(pkt_info->ldpc, RTW_TX_DESC_W5_DATA_LDPC) |
-                      le32_encode_bits(pkt_info->stbc, RTW_TX_DESC_W5_DATA_STBC);
+	tx_desc->w5 = le32_encode_bits(pkt_info->short_gi, RTW_TX_DESC_W5_DATA_SHORT) |
+		      le32_encode_bits(pkt_info->bw, RTW_TX_DESC_W5_DATA_BW) |
+		      le32_encode_bits(pkt_info->ldpc, RTW_TX_DESC_W5_DATA_LDPC) |
+		      le32_encode_bits(pkt_info->stbc, RTW_TX_DESC_W5_DATA_STBC);
 
-        tx_desc->w6 = le32_encode_bits(pkt_info->sn, RTW_TX_DESC_W6_SW_DEFINE);
+	tx_desc->w6 = le32_encode_bits(pkt_info->sn, RTW_TX_DESC_W6_SW_DEFINE);
 
-        tx_desc->w8 = le32_encode_bits(pkt_info->en_hwseq, RTW_TX_DESC_W8_EN_HWSEQ);
+	tx_desc->w8 = le32_encode_bits(pkt_info->en_hwseq, RTW_TX_DESC_W8_EN_HWSEQ);
 
-        tx_desc->w9 = le32_encode_bits(pkt_info->seq, RTW_TX_DESC_W9_SW_SEQ);
+	tx_desc->w9 = le32_encode_bits(pkt_info->seq, RTW_TX_DESC_W9_SW_SEQ);
 
-        if (pkt_info->rts) {
-                tx_desc->w4 |= le32_encode_bits(DESC_RATE24M, RTW_TX_DESC_W4_RTSRATE);
-                tx_desc->w5 |= le32_encode_bits(1, RTW_TX_DESC_W5_DATA_RTS_SHORT);
-        }
+	if (pkt_info->rts) {
+		tx_desc->w4 |= le32_encode_bits(DESC_RATE24M, RTW_TX_DESC_W4_RTSRATE);
+		tx_desc->w5 |= le32_encode_bits(1, RTW_TX_DESC_W5_DATA_RTS_SHORT);
+	}
 
-        if (pkt_info->tim_offset)
-                tx_desc->w9 |= le32_encode_bits(1, RTW_TX_DESC_W9_TIM_EN) |
-                               le32_encode_bits(pkt_info->tim_offset, RTW_TX_DESC_W9_TIM_OFFSET);
+	if (pkt_info->tim_offset)
+		tx_desc->w9 |= le32_encode_bits(1, RTW_TX_DESC_W9_TIM_EN) |
+			       le32_encode_bits(pkt_info->tim_offset, RTW_TX_DESC_W9_TIM_OFFSET);
 }
 
 
 static int rtw_usb_write_data(struct rtw_dev *rtwdev,
-                              struct rtw_tx_pkt_info *pkt_info,
-                              u8 *buf)
+			      struct rtw_tx_pkt_info *pkt_info,
+			      u8 *buf)
 {
-        const struct rtw_chip_info *chip = rtwdev->chip;
-//        struct sk_buff *skb;
-        unsigned int size;
-        u8 qsel;
-        int ret = 0;
-        u8 *data;
+	const struct rtw_chip_info *chip = rtwdev->chip;
+//	  struct sk_buff *skb;
+	unsigned int size;
+	u8 qsel;
+	int ret = 0;
+	u8 *data;
 
-        size = pkt_info->tx_pkt_size;
-        qsel = pkt_info->qsel;
+	size = pkt_info->tx_pkt_size;
+	qsel = pkt_info->qsel;
 
 	// FIXME:misha -- must free, M_NOWAIT?
 	// FINISH MARK XXX
-        data = malloc(chip->tx_pkt_desc_sz + size, M_DEVBUF, M_NOWAIT);
+	data = malloc(chip->tx_pkt_desc_sz + size, M_DEVBUF, M_NOWAIT);
 
 
-//        skb = dev_alloc_skb(chip->tx_pkt_desc_sz + size);
-//        if (unlikely(!skb))
-//                return -ENOMEM;
+//	  skb = dev_alloc_skb(chip->tx_pkt_desc_sz + size);
+//	  if (unlikely(!skb))
+//		  return -ENOMEM;
 //
-//        skb_reserve(skb, chip->tx_pkt_desc_sz);
-//        skb_put_data(skb, buf, size);
-//        skb_push(skb, chip->tx_pkt_desc_sz);
-//        memset(skb->data, 0, chip->tx_pkt_desc_sz);
-//        rtw_tx_fill_tx_desc(pkt_info, skb);
-//        rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, skb->data);
+//	  skb_reserve(skb, chip->tx_pkt_desc_sz);
+//	  skb_put_data(skb, buf, size);
+//	  skb_push(skb, chip->tx_pkt_desc_sz);
+//	  memset(skb->data, 0, chip->tx_pkt_desc_sz);
+//	  rtw_tx_fill_tx_desc(pkt_info, skb);
+//	  rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, skb->data);
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
 
-//        ret = rtw_usb_write_port(rtwdev, qsel, skb,
-//                                 rtw_usb_write_port_complete, skb);
-//        if (unlikely(ret))
-//                rtw_err(rtwdev, "failed to do USB write, ret=%d\n", ret);
+//	  ret = rtw_usb_write_port(rtwdev, qsel, skb,
+//				   rtw_usb_write_port_complete, skb);
+//	  if (unlikely(ret))
+//		  rtw_err(rtwdev, "failed to do USB write, ret=%d\n", ret);
 
-        return ret;
+	return ret;
 }
 
 static int rtw_usb_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf,
-                                        u32 size)
+					u32 size)
 {
-        const struct rtw_chip_info *chip = rtwdev->chip;
-        struct rtw_tx_pkt_info pkt_info = {0};
+	const struct rtw_chip_info *chip = rtwdev->chip;
+	struct rtw_tx_pkt_info pkt_info = {0};
 
-        pkt_info.tx_pkt_size = size;
-        pkt_info.qsel = TX_DESC_QSEL_BEACON;
-        pkt_info.offset = chip->tx_pkt_desc_sz;
+	pkt_info.tx_pkt_size = size;
+	pkt_info.qsel = TX_DESC_QSEL_BEACON;
+	pkt_info.offset = chip->tx_pkt_desc_sz;
 
-        return rtw_usb_write_data(rtwdev, &pkt_info, buf);
+	return rtw_usb_write_data(rtwdev, &pkt_info, buf);
 }
 
 // ---------- write usb packet end ----------
@@ -1765,31 +1788,31 @@ rtw88_hci_setup(struct rtw_dev *rtwdev)
 static inline u32
 rtw_read32_mask(struct rtw_dev *rtwdev, u32 addr, u32 mask)
 {
-        u32 shift = ffs(mask);
-        u32 orig;
-        u32 ret;
+	u32 shift = ffs(mask);
+	u32 orig;
+	u32 ret;
 
-        orig = rtw_read32(rtwdev, addr);
-        ret = (orig & mask) >> shift;
+	orig = rtw_read32(rtwdev, addr);
+	ret = (orig & mask) >> shift;
 
-        return ret;
+	return ret;
 }
 
 
 static inline void rtw_write8_set(struct rtw_dev *rtwdev, u32 addr, u8 bit)
 {
-        u8 val;
+	u8 val;
 
-        val = rtw_read8(rtwdev, addr);
-        rtw_write8(rtwdev, addr, val | bit);
+	val = rtw_read8(rtwdev, addr);
+	rtw_write8(rtwdev, addr, val | bit);
 }
 
 //static inline void rtw_write16_set(struct rtw_dev *rtwdev, u32 addr, u16 bit)
 //{
-//        u16 val;
+//	  u16 val;
 //
-//        val = rtw_read16(rtwdev, addr);
-//        rtw_write16(rtwdev, addr, val | bit);
+//	  val = rtw_read16(rtwdev, addr);
+//	  rtw_write16(rtwdev, addr, val | bit);
 //}
 //
 static inline void rtw_write32_set(struct rtw_dev *rtwdev, u32 addr, u32 bit)
@@ -1810,41 +1833,41 @@ static inline void rtw_write8_clr(struct rtw_dev *rtwdev, u32 addr, u8 bit)
 //
 //static inline void rtw_write16_clr(struct rtw_dev *rtwdev, u32 addr, u16 bit)
 //{
-//        u16 val;
+//	  u16 val;
 //
-//        val = rtw_read16(rtwdev, addr);
-//        rtw_write16(rtwdev, addr, val & ~bit);
+//	  val = rtw_read16(rtwdev, addr);
+//	  rtw_write16(rtwdev, addr, val & ~bit);
 //}
 //
 //static inline void rtw_write32_clr(struct rtw_dev *rtwdev, u32 addr, u32 bit)
 //{
-//        u32 val;
+//	  u32 val;
 //
-//        val = rtw_read32(rtwdev, addr);
-//        rtw_write32(rtwdev, addr, val & ~bit);
+//	  val = rtw_read32(rtwdev, addr);
+//	  rtw_write32(rtwdev, addr, val & ~bit);
 //}
 
 bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target)
 {
-        u32 cnt;
+	u32 cnt;
 
-        for (cnt = 0; cnt < 1000; cnt++) {
-                if (rtw_read32_mask(rtwdev, addr, mask) == target)
-                        return true;
+	for (cnt = 0; cnt < 1000; cnt++) {
+		if (rtw_read32_mask(rtwdev, addr, mask) == target)
+			return true;
 
 		// XXX:misha udelay?
-//                udelay(10);
+//		  udelay(10);
 		DELAY(10);
-        }
+	}
 
-        return false;
+	return false;
 }
 
 
 static inline int
 rtw_hci_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf, u32 size)
 {
-        return rtwdev->hci.ops->write_data_rsvd_page(rtwdev, buf, size);
+	return rtwdev->hci.ops->write_data_rsvd_page(rtwdev, buf, size);
 }
 
 // }}}
@@ -1892,33 +1915,33 @@ urtwm_task(void *arg)
 // {{{ rtw88_download_firmware
 
 int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
-                                u8 *buf, u32 size)
+				u8 *buf, u32 size)
 {
-        u8 bckp[2];
-        u8 val;
-//        u16 rsvd_pg_head;
-        u32 bcn_valid_addr;
-        u32 bcn_valid_mask;
-        int ret;
+	u8 bckp[2];
+	u8 val;
+//	  u16 rsvd_pg_head;
+	u32 bcn_valid_addr;
+	u32 bcn_valid_mask;
+	int ret;
 
 	// XXX:misha -- KASSERT here
-//        lockdep_assert_held(&rtwdev->mutex);
+//	  lockdep_assert_held(&rtwdev->mutex);
 
-        if (!size)
-                return -EINVAL;
+	if (!size)
+		return -EINVAL;
 
-        if (rtw_chip_wcpu_11n(rtwdev)) {
-                rtw_write32_set(rtwdev, REG_DWBCN0_CTRL, BIT_BCN_VALID);
-        } else {
-                pg_addr &= BIT_MASK_BCN_HEAD_1_V1;
-                pg_addr |= BIT_BCN_VALID_V1;
-                rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2, pg_addr);
-        }
+	if (rtw_chip_wcpu_11n(rtwdev)) {
+		rtw_write32_set(rtwdev, REG_DWBCN0_CTRL, BIT_BCN_VALID);
+	} else {
+		pg_addr &= BIT_MASK_BCN_HEAD_1_V1;
+		pg_addr |= BIT_BCN_VALID_V1;
+		rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2, pg_addr);
+	}
 
-        val = rtw_read8(rtwdev, REG_CR + 1);
-        bckp[0] = val;
-        val |= BIT_ENSWBCN >> 8;
-        rtw_write8(rtwdev, REG_CR + 1, val);
+	val = rtw_read8(rtwdev, REG_CR + 1);
+	bckp[0] = val;
+	val |= BIT_ENSWBCN >> 8;
+	rtw_write8(rtwdev, REG_CR + 1, val);
 
 	if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_PCIE) {
 		val = rtw_read8(rtwdev, REG_FWHW_TXQ_CTRL + 2);
@@ -1927,239 +1950,239 @@ int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
 		rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, val);
 	}
 
-        ret = rtw_hci_write_data_rsvd_page(rtwdev, buf, size);
-        if (ret) {
-                printf("%s: failed to write data to rsvd page\n", __func__);
-                // FIXME:misha -- remove return
-//                goto restore;
+	ret = rtw_hci_write_data_rsvd_page(rtwdev, buf, size);
+	if (ret) {
+		printf("%s: failed to write data to rsvd page\n", __func__);
+		// FIXME:misha -- remove return
+//		  goto restore;
 		return ret;
-        }
+	}
 
-        if (rtw_chip_wcpu_11n(rtwdev)) {
-                bcn_valid_addr = REG_DWBCN0_CTRL;
-                bcn_valid_mask = BIT_BCN_VALID;
-        } else {
-                bcn_valid_addr = REG_FIFOPAGE_CTRL_2;
-                bcn_valid_mask = BIT_BCN_VALID_V1;
-        }
+	if (rtw_chip_wcpu_11n(rtwdev)) {
+		bcn_valid_addr = REG_DWBCN0_CTRL;
+		bcn_valid_mask = BIT_BCN_VALID;
+	} else {
+		bcn_valid_addr = REG_FIFOPAGE_CTRL_2;
+		bcn_valid_mask = BIT_BCN_VALID_V1;
+	}
 
-        if (!check_hw_ready(rtwdev, bcn_valid_addr, bcn_valid_mask, 1)) {
-                printf("%s: error beacon valid\n", __func__);
-                ret = -EBUSY;
-        }
+	if (!check_hw_ready(rtwdev, bcn_valid_addr, bcn_valid_mask, 1)) {
+		printf("%s: error beacon valid\n", __func__);
+		ret = -EBUSY;
+	}
 
 //restore:
-//        rsvd_pg_head = rtwdev->fifo.rsvd_boundary;
-//        rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2,
-//                    rsvd_pg_head | BIT_BCN_VALID_V1);
-//        if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_PCIE)
-//                rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, bckp[1]);
-//        rtw_write8(rtwdev, REG_CR + 1, bckp[0]);
+//	  rsvd_pg_head = rtwdev->fifo.rsvd_boundary;
+//	  rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2,
+//		      rsvd_pg_head | BIT_BCN_VALID_V1);
+//	  if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_PCIE)
+//		  rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, bckp[1]);
+//	  rtw_write8(rtwdev, REG_CR + 1, bckp[0]);
 
-        return ret;
+	return ret;
 }
 
 #define TX_DESC_SIZE 48
 
 static int send_firmware_pkt_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
-                                       const u8 *data, u32 size)
+				       const u8 *data, u32 size)
 {
-        u8 *buf;
-        int ret;
+	u8 *buf;
+	int ret;
 
-//        buf = kmemdup(data, size, GFP_KERNEL);
+//	  buf = kmemdup(data, size, GFP_KERNEL);
 	// XXX:misha -- M_NOWAIT? why kmemdup at all?
 	buf = malloc(size, M_DEVBUF, M_NOWAIT);
 	if (!buf)
 		return -ENOMEM;
 	memcpy(buf, data, size);
 
-        ret = rtw_fw_write_data_rsvd_page(rtwdev, pg_addr, buf, size);
-        // FIXME: misha -- free?
-//        kfree(buf);
-        return ret;
+	ret = rtw_fw_write_data_rsvd_page(rtwdev, pg_addr, buf, size);
+	// FIXME: misha -- free?
+//	  kfree(buf);
+	return ret;
 }
 
 
 static int
 send_firmware_pkt(struct rtw_dev *rtwdev, u16 pg_addr, const u8 *data, u32 size)
 {
-        int ret;
+	int ret;
 
-        if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_USB &&
-            !((size + TX_DESC_SIZE) & (512 - 1)))
-                size += 1;
+	if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_USB &&
+	    !((size + TX_DESC_SIZE) & (512 - 1)))
+		size += 1;
 
-        ret = send_firmware_pkt_rsvd_page(rtwdev, pg_addr, data, size);
-        if (ret)
-                printf("%s: failed to download rsvd page\n", __func__);
+	ret = send_firmware_pkt_rsvd_page(rtwdev, pg_addr, data, size);
+	if (ret)
+		printf("%s: failed to download rsvd page\n", __func__);
 
-        return ret;
+	return ret;
 }
 
 static int
 download_firmware_to_mem(struct rtw_dev *rtwdev, const u8 *data,
-                         u32 src, u32 dst, u32 size)
+			 u32 src, u32 dst, u32 size)
 {
-//        const struct rtw_chip_info *chip = rtwdev->chip;
-//        u32 desc_size = chip->tx_pkt_desc_sz;
-        u8 first_part;
-        u32 mem_offset;
-        u32 residue_size;
-        u32 pkt_size;
-        u32 max_size = 0x1000;
-        u32 val;
-        int ret;
+//	  const struct rtw_chip_info *chip = rtwdev->chip;
+//	  u32 desc_size = chip->tx_pkt_desc_sz;
+	u8 first_part;
+	u32 mem_offset;
+	u32 residue_size;
+	u32 pkt_size;
+	u32 max_size = 0x1000;
+	u32 val;
+	int ret;
 
-        mem_offset = 0;
-        first_part = 1;
-        residue_size = size;
+	mem_offset = 0;
+	first_part = 1;
+	residue_size = size;
 
-        val = rtw_read32(rtwdev, REG_DDMA_CH0CTRL);
-        val |= BIT_DDMACH0_RESET_CHKSUM_STS;
-        rtw_write32(rtwdev, REG_DDMA_CH0CTRL, val);
+	val = rtw_read32(rtwdev, REG_DDMA_CH0CTRL);
+	val |= BIT_DDMACH0_RESET_CHKSUM_STS;
+	rtw_write32(rtwdev, REG_DDMA_CH0CTRL, val);
 
-        while (residue_size) {
-                if (residue_size >= max_size)
-                        pkt_size = max_size;
-                else
-                        pkt_size = residue_size;
+	while (residue_size) {
+		if (residue_size >= max_size)
+			pkt_size = max_size;
+		else
+			pkt_size = residue_size;
 
-                ret = send_firmware_pkt(rtwdev, (u16)(src >> 7),
-                                        data + mem_offset, pkt_size);
-                if (ret)
-                        return ret;
+		ret = send_firmware_pkt(rtwdev, (u16)(src >> 7),
+					data + mem_offset, pkt_size);
+		if (ret)
+			return ret;
 
-//                ret = iddma_download_firmware(rtwdev, OCPBASE_TXBUF_88XX +
-//                                              src + desc_size,
-//                                              dst + mem_offset, pkt_size,
-//                                              first_part);
-//                if (ret)
-//                        return ret;
+//		  ret = iddma_download_firmware(rtwdev, OCPBASE_TXBUF_88XX +
+//						src + desc_size,
+//						dst + mem_offset, pkt_size,
+//						first_part);
+//		  if (ret)
+//			  return ret;
 
-                first_part = 0;
-                mem_offset += pkt_size;
-                residue_size -= pkt_size;
-        }
+		first_part = 0;
+		mem_offset += pkt_size;
+		residue_size -= pkt_size;
+	}
 
-//        if (!check_fw_checksum(rtwdev, dst))
-//                return -EINVAL;
+//	  if (!check_fw_checksum(rtwdev, dst))
+//		  return -EINVAL;
 
-        return 0;
+	return 0;
 }
 
 static int
 start_download_firmware(struct rtw_dev *rtwdev, const u8 *data, u32 size)
 {
-        const struct rtw_fw_hdr *fw_hdr = (const struct rtw_fw_hdr *)data;
-        const u8 *cur_fw;
-        u16 val;
-        u32 imem_size;
-        u32 dmem_size;
-        u32 emem_size;
-        u32 addr;
-        int ret;
+	const struct rtw_fw_hdr *fw_hdr = (const struct rtw_fw_hdr *)data;
+	const u8 *cur_fw;
+	u16 val;
+	u32 imem_size;
+	u32 dmem_size;
+	u32 emem_size;
+	u32 addr;
+	int ret;
 
-        dmem_size = le32_to_cpu(fw_hdr->dmem_size);
-        imem_size = le32_to_cpu(fw_hdr->imem_size);
-        emem_size = (fw_hdr->mem_usage & BIT(4)) ?
-                    le32_to_cpu(fw_hdr->emem_size) : 0;
-        dmem_size += FW_HDR_CHKSUM_SIZE;
-        imem_size += FW_HDR_CHKSUM_SIZE;
-        emem_size += emem_size ? FW_HDR_CHKSUM_SIZE : 0;
+	dmem_size = le32_to_cpu(fw_hdr->dmem_size);
+	imem_size = le32_to_cpu(fw_hdr->imem_size);
+	emem_size = (fw_hdr->mem_usage & BIT(4)) ?
+		    le32_to_cpu(fw_hdr->emem_size) : 0;
+	dmem_size += FW_HDR_CHKSUM_SIZE;
+	imem_size += FW_HDR_CHKSUM_SIZE;
+	emem_size += emem_size ? FW_HDR_CHKSUM_SIZE : 0;
 
-        val = (u16)(rtw_read16(rtwdev, REG_MCUFW_CTRL) & 0x3800);
-        val |= BIT_MCUFWDL_EN;
-        rtw_write16(rtwdev, REG_MCUFW_CTRL, val);
+	val = (u16)(rtw_read16(rtwdev, REG_MCUFW_CTRL) & 0x3800);
+	val |= BIT_MCUFWDL_EN;
+	rtw_write16(rtwdev, REG_MCUFW_CTRL, val);
 
-        cur_fw = data + FW_HDR_SIZE;
-        addr = le32_to_cpu(fw_hdr->dmem_addr);
-        addr &= ~BIT(31);
-        ret = download_firmware_to_mem(rtwdev, cur_fw, 0, addr, dmem_size);
-        if (ret)
-                return ret;
+	cur_fw = data + FW_HDR_SIZE;
+	addr = le32_to_cpu(fw_hdr->dmem_addr);
+	addr &= ~BIT(31);
+	ret = download_firmware_to_mem(rtwdev, cur_fw, 0, addr, dmem_size);
+	if (ret)
+		return ret;
 
-        cur_fw = data + FW_HDR_SIZE + dmem_size;
-        addr = le32_to_cpu(fw_hdr->imem_addr);
-        addr &= ~BIT(31);
-        ret = download_firmware_to_mem(rtwdev, cur_fw, 0, addr, imem_size);
-        if (ret)
-                return ret;
+	cur_fw = data + FW_HDR_SIZE + dmem_size;
+	addr = le32_to_cpu(fw_hdr->imem_addr);
+	addr &= ~BIT(31);
+	ret = download_firmware_to_mem(rtwdev, cur_fw, 0, addr, imem_size);
+	if (ret)
+		return ret;
 
-        if (emem_size) {
-                cur_fw = data + FW_HDR_SIZE + dmem_size + imem_size;
-                addr = le32_to_cpu(fw_hdr->emem_addr);
-                addr &= ~BIT(31);
-                ret = download_firmware_to_mem(rtwdev, cur_fw, 0, addr,
-                                               emem_size);
-                if (ret)
-                        return ret;
-        }
+	if (emem_size) {
+		cur_fw = data + FW_HDR_SIZE + dmem_size + imem_size;
+		addr = le32_to_cpu(fw_hdr->emem_addr);
+		addr &= ~BIT(31);
+		ret = download_firmware_to_mem(rtwdev, cur_fw, 0, addr,
+					       emem_size);
+		if (ret)
+			return ret;
+	}
 
-        return 0;
+	return 0;
 }
 
 static void download_firmware_reset_platform(struct rtw_dev *rtwdev)
 {
-        rtw_write8_clr(rtwdev, REG_CPU_DMEM_CON + 2, BIT_WL_PLATFORM_RST >> 16);
-        rtw_write8_clr(rtwdev, REG_SYS_CLK_CTRL + 1, BIT_CPU_CLK_EN >> 8);
-        rtw_write8_set(rtwdev, REG_CPU_DMEM_CON + 2, BIT_WL_PLATFORM_RST >> 16);
-        rtw_write8_set(rtwdev, REG_SYS_CLK_CTRL + 1, BIT_CPU_CLK_EN >> 8);
+	rtw_write8_clr(rtwdev, REG_CPU_DMEM_CON + 2, BIT_WL_PLATFORM_RST >> 16);
+	rtw_write8_clr(rtwdev, REG_SYS_CLK_CTRL + 1, BIT_CPU_CLK_EN >> 8);
+	rtw_write8_set(rtwdev, REG_CPU_DMEM_CON + 2, BIT_WL_PLATFORM_RST >> 16);
+	rtw_write8_set(rtwdev, REG_SYS_CLK_CTRL + 1, BIT_CPU_CLK_EN >> 8);
 }
 
 static void download_firmware_reg_backup(struct rtw_dev *rtwdev,
-                                         struct rtw_backup_info *bckp)
+					 struct rtw_backup_info *bckp)
 {
-        u8 tmp;
-        u8 bckp_idx = 0;
+	u8 tmp;
+	u8 bckp_idx = 0;
 
-        /* set HIQ to hi priority */
-        bckp[bckp_idx].len = 1;
-        bckp[bckp_idx].reg = REG_TXDMA_PQ_MAP + 1;
-        bckp[bckp_idx].val = rtw_read8(rtwdev, REG_TXDMA_PQ_MAP + 1);
-        bckp_idx++;
-        tmp = RTW_DMA_MAPPING_HIGH << 6;
-        rtw_write8(rtwdev, REG_TXDMA_PQ_MAP + 1, tmp);
+	/* set HIQ to hi priority */
+	bckp[bckp_idx].len = 1;
+	bckp[bckp_idx].reg = REG_TXDMA_PQ_MAP + 1;
+	bckp[bckp_idx].val = rtw_read8(rtwdev, REG_TXDMA_PQ_MAP + 1);
+	bckp_idx++;
+	tmp = RTW_DMA_MAPPING_HIGH << 6;
+	rtw_write8(rtwdev, REG_TXDMA_PQ_MAP + 1, tmp);
 
-        /* DLFW only use HIQ, map HIQ to hi priority */
-        bckp[bckp_idx].len = 1;
-        bckp[bckp_idx].reg = REG_CR;
-        bckp[bckp_idx].val = rtw_read8(rtwdev, REG_CR);
-        bckp_idx++;
-        bckp[bckp_idx].len = 4;
-        bckp[bckp_idx].reg = REG_H2CQ_CSR;
-        bckp[bckp_idx].val = BIT_H2CQ_FULL;
-        bckp_idx++;
-        tmp = BIT_HCI_TXDMA_EN | BIT_TXDMA_EN;
-        rtw_write8(rtwdev, REG_CR, tmp);
-        rtw_write32(rtwdev, REG_H2CQ_CSR, BIT_H2CQ_FULL);
+	/* DLFW only use HIQ, map HIQ to hi priority */
+	bckp[bckp_idx].len = 1;
+	bckp[bckp_idx].reg = REG_CR;
+	bckp[bckp_idx].val = rtw_read8(rtwdev, REG_CR);
+	bckp_idx++;
+	bckp[bckp_idx].len = 4;
+	bckp[bckp_idx].reg = REG_H2CQ_CSR;
+	bckp[bckp_idx].val = BIT_H2CQ_FULL;
+	bckp_idx++;
+	tmp = BIT_HCI_TXDMA_EN | BIT_TXDMA_EN;
+	rtw_write8(rtwdev, REG_CR, tmp);
+	rtw_write32(rtwdev, REG_H2CQ_CSR, BIT_H2CQ_FULL);
 
-        /* Config hi priority queue and public priority queue page number */
-        bckp[bckp_idx].len = 2;
-        bckp[bckp_idx].reg = REG_FIFOPAGE_INFO_1;
-        bckp[bckp_idx].val = rtw_read16(rtwdev, REG_FIFOPAGE_INFO_1);
-        bckp_idx++;
-        bckp[bckp_idx].len = 4;
-        bckp[bckp_idx].reg = REG_RQPN_CTRL_2;
-        bckp[bckp_idx].val = rtw_read32(rtwdev, REG_RQPN_CTRL_2) | BIT_LD_RQPN;
-        bckp_idx++;
-        rtw_write16(rtwdev, REG_FIFOPAGE_INFO_1, 0x200);
-        rtw_write32(rtwdev, REG_RQPN_CTRL_2, bckp[bckp_idx - 1].val);
+	/* Config hi priority queue and public priority queue page number */
+	bckp[bckp_idx].len = 2;
+	bckp[bckp_idx].reg = REG_FIFOPAGE_INFO_1;
+	bckp[bckp_idx].val = rtw_read16(rtwdev, REG_FIFOPAGE_INFO_1);
+	bckp_idx++;
+	bckp[bckp_idx].len = 4;
+	bckp[bckp_idx].reg = REG_RQPN_CTRL_2;
+	bckp[bckp_idx].val = rtw_read32(rtwdev, REG_RQPN_CTRL_2) | BIT_LD_RQPN;
+	bckp_idx++;
+	rtw_write16(rtwdev, REG_FIFOPAGE_INFO_1, 0x200);
+	rtw_write32(rtwdev, REG_RQPN_CTRL_2, bckp[bckp_idx - 1].val);
 
 	//XXX:misha -- usb only
-//        if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_SDIO)
-//                rtw_read32(rtwdev, REG_SDIO_FREE_TXPG);
+//	  if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_SDIO)
+//		  rtw_read32(rtwdev, REG_SDIO_FREE_TXPG);
 
-        /* Disable beacon related functions */
-        tmp = rtw_read8(rtwdev, REG_BCN_CTRL);
-        bckp[bckp_idx].len = 1;
-        bckp[bckp_idx].reg = REG_BCN_CTRL;
-        bckp[bckp_idx].val = tmp;
-        bckp_idx++;
-        tmp = (u8)((tmp & (~BIT_EN_BCN_FUNCTION)) | BIT_DIS_TSF_UDT);
-        rtw_write8(rtwdev, REG_BCN_CTRL, tmp);
+	/* Disable beacon related functions */
+	tmp = rtw_read8(rtwdev, REG_BCN_CTRL);
+	bckp[bckp_idx].len = 1;
+	bckp[bckp_idx].reg = REG_BCN_CTRL;
+	bckp[bckp_idx].val = tmp;
+	bckp_idx++;
+	tmp = (u8)((tmp & (~BIT_EN_BCN_FUNCTION)) | BIT_DIS_TSF_UDT);
+	rtw_write8(rtwdev, REG_BCN_CTRL, tmp);
 
-//        WARN(bckp_idx != DLFW_RESTORE_REG_NUM, "wrong backup number\n");
+//	  WARN(bckp_idx != DLFW_RESTORE_REG_NUM, "wrong backup number\n");
 	if (bckp_idx != DLFW_RESTORE_REG_NUM)
 		printf("%s: wrong backup number: %i\n", __func__, bckp_idx);
 }
@@ -2167,34 +2190,34 @@ static void download_firmware_reg_backup(struct rtw_dev *rtwdev,
 
 static void wlan_cpu_enable(struct rtw_dev *rtwdev, bool enable)
 {
-        if (enable) {
-                /* cpu io interface enable */
-                rtw_write8_set(rtwdev, REG_RSV_CTRL + 1, BIT_WLMCU_IOIF);
+	if (enable) {
+		/* cpu io interface enable */
+		rtw_write8_set(rtwdev, REG_RSV_CTRL + 1, BIT_WLMCU_IOIF);
 
-                /* cpu enable */
-                rtw_write8_set(rtwdev, REG_SYS_FUNC_EN + 1, BIT_FEN_CPUEN);
-        } else {
-                /* cpu io interface disable */
-                rtw_write8_clr(rtwdev, REG_SYS_FUNC_EN + 1, BIT_FEN_CPUEN);
+		/* cpu enable */
+		rtw_write8_set(rtwdev, REG_SYS_FUNC_EN + 1, BIT_FEN_CPUEN);
+	} else {
+		/* cpu io interface disable */
+		rtw_write8_clr(rtwdev, REG_SYS_FUNC_EN + 1, BIT_FEN_CPUEN);
 
-                /* cpu disable */
-                rtw_write8_clr(rtwdev, REG_RSV_CTRL + 1, BIT_WLMCU_IOIF);
-        }
+		/* cpu disable */
+		rtw_write8_clr(rtwdev, REG_RSV_CTRL + 1, BIT_WLMCU_IOIF);
+	}
 }
 
 
 bool ltecoex_read_reg(struct rtw_dev *rtwdev, u16 offset, u32 *val)
 {
-        const struct rtw_chip_info *chip = rtwdev->chip;
-        const struct rtw_ltecoex_addr *ltecoex = chip->ltecoex_addr;
+	const struct rtw_chip_info *chip = rtwdev->chip;
+	const struct rtw_ltecoex_addr *ltecoex = chip->ltecoex_addr;
 
-        if (!check_hw_ready(rtwdev, ltecoex->ctrl, LTECOEX_READY, 1))
-                return false;
+	if (!check_hw_ready(rtwdev, ltecoex->ctrl, LTECOEX_READY, 1))
+		return false;
 
-        rtw_write32(rtwdev, ltecoex->ctrl, 0x800F0000 | offset);
-        *val = rtw_read32(rtwdev, ltecoex->rdata);
+	rtw_write32(rtwdev, ltecoex->ctrl, 0x800F0000 | offset);
+	*val = rtw_read32(rtwdev, ltecoex->rdata);
 
-        return true;
+	return true;
 }
 
 static bool check_firmware_size(const u8 *data, u32 size)
@@ -2726,7 +2749,7 @@ err:
 
 void rtw_mac_power_off(struct rtw_dev *rtwdev)
 {
-        rtw88_mac_power_switch(rtwdev, false);
+	rtw88_mac_power_switch(rtwdev, false);
 }
 
 // }}}
@@ -2915,6 +2938,233 @@ rtw88_chip_parameter_setup(struct rtw_dev *rtwdev)
 
 /* -------------------------------------------------------------------------- */
 
+
+static int dma_mapping_to_ep(enum rtw_dma_mapping dma_mapping)
+{
+        switch (dma_mapping) {
+        case RTW_DMA_MAPPING_HIGH:
+                return 0;
+        case RTW_DMA_MAPPING_NORMAL:
+                return 1;
+        case RTW_DMA_MAPPING_LOW:
+                return 2;
+        case RTW_DMA_MAPPING_EXTRA:
+                return 3;
+        default:
+                return -EINVAL;
+        }
+}
+
+// TODO: proper cleanup (goto fail)
+static int rtw_usb_parse(struct rtw_dev *rtwdev)
+{
+//	struct rtw_usb *rtwusb = rtw_get_usb_priv(rtwdev);
+//	struct usb_host_interface *host_interface = &interface->altsetting[0];
+//	struct usb_interface_descriptor *interface_desc = &host_interface->desc;
+//	struct usb_endpoint_descriptor *endpoint;
+//	int num_out_pipes = 0;
+//	int i;
+//	u8 num;
+	const struct rtw_chip_info *chip = rtwdev->chip;
+	const struct rtw_rqpn *rqpn;
+	struct urtwm_softc *sc = rtwdev->cookie;
+	uint8_t rx_no, int_no, out_no;
+	usb_interface_descriptor_t *id;
+	usb_endpoint_descriptor_t *ed;
+	int i, error, nrx = 0, nint = 0, num_out_pipes = 0;
+
+	id = usbd_get_interface_descriptor(sc->sc_iface);
+//	for (i = 0; i < interface_desc->bNumEndpoints; i++) {
+//		endpoint = &host_interface->endpoint[i].desc;
+//		num = usb_endpoint_num(endpoint);
+//
+//		if (usb_endpoint_dir_in(endpoint) &&
+//		    usb_endpoint_xfer_bulk(endpoint)) {
+//			if (rtwusb->pipe_in) {
+//				rtw_err(rtwdev, "IN pipes overflow\n");
+//				return -EINVAL;
+//			}
+//
+//			rtwusb->pipe_in = num;
+//		}
+//
+//		if (usb_endpoint_dir_in(endpoint) &&
+//		    usb_endpoint_xfer_int(endpoint)) {
+//			if (rtwusb->pipe_interrupt) {
+//				rtw_err(rtwdev, "INT pipes overflow\n");
+//				return -EINVAL;
+//			}
+//
+//			rtwusb->pipe_interrupt = num;
+//		}
+//
+//		if (usb_endpoint_dir_out(endpoint) &&
+//		    usb_endpoint_xfer_bulk(endpoint)) {
+//			if (num_out_pipes >= ARRAY_SIZE(rtwusb->out_ep)) {
+//				rtw_err(rtwdev, "OUT pipes overflow\n");
+//				return -EINVAL;
+//			}
+//
+//			rtwusb->out_ep[num_out_pipes++] = num;
+//		}
+//	}
+	for (i = 0; i < id->bNumEndpoints; i++) {
+		printf("%s: i=%i\n", __func__, i);
+		ed = usbd_interface2endpoint_descriptor(sc->sc_iface, i);
+//
+////		if (ed == NULL || UE_GET_XFERTYPE(ed->bmAttributes) != UE_BULK)
+////			continue;
+//
+//		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN) {
+//			rx_no = ed->bEndpointAddress;
+//			nrx++;
+//		} else {
+//			if (sc->ntx < R92C_MAX_EPOUT)
+//				epaddr[sc->ntx] = ed->bEndpointAddress;
+//			sc->ntx++;
+//		}
+		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN &&
+		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK) {
+			if (nrx) {
+				printf("%s: %s: IN pipes overflow\n",
+				    sc->sc_pdev->dv_xname, __func__);
+				return EINVAL;
+			}
+			rx_no = ed->bEndpointAddress;
+			nrx++;
+			error = usbd_open_pipe(sc->sc_iface, rx_no, 0,
+			    &sc->rx_pipe);
+			if (error != 0) {
+				printf("%s: %s could not open Rx bulk pipe, "
+				    "error=%i\n", sc->sc_pdev->dv_xname,
+				    __func__, error);
+				return EINVAL;
+			}
+		}
+
+		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN &&
+		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_INTERRUPT) {
+			if (nint) {
+				printf("%s: %s: INT pipes overflow\n",
+				    sc->sc_pdev->dv_xname, __func__);
+				return EINVAL;
+			}
+			int_no = ed->bEndpointAddress;
+			nint++;
+			error = usbd_open_pipe(sc->sc_iface, int_no, 0,
+			    &sc->int_pipe);
+			if (error != 0) {
+				printf("%s: %s could not open Int pipe, "
+				    "error=%i\n", sc->sc_pdev->dv_xname,
+				    __func__, error);
+				return EINVAL;
+			}
+
+		}
+
+		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_OUT &&
+		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK) {
+			if (num_out_pipes >= nitems(sc->tx_pipe)) {
+				printf("%s: %s: OUT pipes overflow\n",
+				    sc->sc_pdev->dv_xname, __func__);
+				return EINVAL;
+			}
+			out_no = ed->bEndpointAddress;
+			error = usbd_open_pipe(sc->sc_iface, out_no, 0,
+			    &sc->tx_pipe[num_out_pipes++]);
+			if (error != 0) {
+				printf("%s: %s could not open Tx bulk pipe "
+				    "0x%02x\n, error=%i\n",
+				    sc->sc_pdev->dv_xname, __func__,  out_no,
+				    error);
+				return EINVAL;
+			}
+		}
+
+	}
+
+//	rtwdev->hci.bulkout_num = num_out_pipes;
+//
+//	if (num_out_pipes < 1 || num_out_pipes > 4) {
+//		rtw_err(rtwdev, "invalid number of endpoints %d\n", num_out_pipes);
+//		return -EINVAL;
+//	}
+	if (num_out_pipes < 1 || num_out_pipes > 4) {
+		printf("%s: %s invalid number of endpoints %d\n",
+		    sc->sc_pdev->dv_xname, __func__, num_out_pipes);
+		return EINVAL;
+	}
+	rqpn = &chip->rqpn_table[num_out_pipes];
+//
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID0] = dma_mapping_to_ep(rqpn->dma_map_be);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID1] = dma_mapping_to_ep(rqpn->dma_map_bk);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID2] = dma_mapping_to_ep(rqpn->dma_map_bk);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID3] = dma_mapping_to_ep(rqpn->dma_map_be);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID4] = dma_mapping_to_ep(rqpn->dma_map_vi);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID5] = dma_mapping_to_ep(rqpn->dma_map_vi);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID6] = dma_mapping_to_ep(rqpn->dma_map_vo);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID7] = dma_mapping_to_ep(rqpn->dma_map_vo);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID8] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID9] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID10] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID11] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID12] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID13] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID14] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID15] = -EINVAL;
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_BEACON] = dma_mapping_to_ep(rqpn->dma_map_hi);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_HIGH] = dma_mapping_to_ep(rqpn->dma_map_hi);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_MGMT] = dma_mapping_to_ep(rqpn->dma_map_mg);
+//	rtwusb->qsel_to_ep[TX_DESC_QSEL_H2C] = dma_mapping_to_ep(rqpn->dma_map_hi);
+
+	sc->qsel_to_ep[TX_DESC_QSEL_TID0] = dma_mapping_to_ep(rqpn->dma_map_be);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID1] = dma_mapping_to_ep(rqpn->dma_map_bk);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID2] = dma_mapping_to_ep(rqpn->dma_map_bk);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID3] = dma_mapping_to_ep(rqpn->dma_map_be);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID4] = dma_mapping_to_ep(rqpn->dma_map_vi);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID5] = dma_mapping_to_ep(rqpn->dma_map_vi);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID6] = dma_mapping_to_ep(rqpn->dma_map_vo);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID7] = dma_mapping_to_ep(rqpn->dma_map_vo);
+	sc->qsel_to_ep[TX_DESC_QSEL_TID8] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_TID9] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_TID10] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_TID11] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_TID12] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_TID13] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_TID14] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_TID15] = -EINVAL;
+	sc->qsel_to_ep[TX_DESC_QSEL_BEACON] = dma_mapping_to_ep(rqpn->dma_map_hi);
+	sc->qsel_to_ep[TX_DESC_QSEL_HIGH] = dma_mapping_to_ep(rqpn->dma_map_hi);
+	sc->qsel_to_ep[TX_DESC_QSEL_MGMT] = dma_mapping_to_ep(rqpn->dma_map_mg);
+	sc->qsel_to_ep[TX_DESC_QSEL_H2C] = dma_mapping_to_ep(rqpn->dma_map_hi);
+	return 0;
+}
+
+
+static int rtw_usb_intf_init(struct rtw_dev *rtwdev)
+{
+//	struct rtw_usb *rtwusb = rtw_get_usb_priv(rtwdev);
+//	struct usb_device *udev = usb_get_dev(interface_to_usbdev(intf));
+	int ret;
+//
+//	rtwusb->udev = udev;
+	ret = rtw_usb_parse(rtwdev);
+	if (ret)
+		return ret;
+//
+//	rtwusb->usb_data = kcalloc(RTW_USB_MAX_RXTX_COUNT, sizeof(u32),
+//				   GFP_KERNEL);
+//	if (!rtwusb->usb_data)
+//		return -ENOMEM;
+//
+//	usb_set_intfdata(intf, rtwdev->hw);
+//
+//	SET_IEEE80211_DEV(rtwdev->hw, &intf->dev);
+//	spin_lock_init(&rtwusb->usb_lock);
+
+	return 0;
+}
+
 void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
 {
@@ -2945,11 +3195,15 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 //		goto err_free_rx_bufs;
 
 	// TODO - setup usb before downloading firmware
-//	ret = rtw_usb_intf_init(rtwdev, intf);
-//	if (ret) {
+	ret = rtw_usb_intf_init(rtwdev);
+	if (ret) {
 //		rtw_err(rtwdev, "failed to init USB interface\n");
+		printf("%s: %s: failed to init USB interface, error=%i\n",
+		    sc->sc_pdev->dv_xname, __func__, ret);
+		return;
+		// TODO: cleanup
 //		goto err_deinit_core;
-//	}
+	}
 //
 //	ret = rtw_usb_init_tx(rtwdev);
 //	if (ret) {
