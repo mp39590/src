@@ -60,6 +60,12 @@ typedef int64_t __le64;
 
 #define cut_version_to_mask(cut) (0x1 << ((cut) + 1))
 
+static inline int
+__ffs(int mask)
+{
+        return (ffs(mask) - 1);
+}
+
 #define DLFW_RESTORE_REG_NUM 6
 #define FW_HDR_CHKSUM_SIZE		8
 #define FW_HDR_SIZE			64
@@ -1746,7 +1752,6 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 	struct usbd_pipe *pipe;
 	int error;
         int ep = qsel_to_ep(rtwdev, qsel);
-        ep = 1;
         printf("%s: ep=%i\n", __func__, ep);
 //
 	if (ep < 0)
@@ -1771,8 +1776,11 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 		printf("%s: could not alloc xfer\n", __func__);
 		return ENOMEM;
 	}
+//	for (int i = 0; i < m->m_len; i++) {
+//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
+//	}
 	usbd_setup_xfer(xfer, pipe, NULL, m->m_data, m->m_len,
-	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, 5000 /*timeout*/,
+	    /*USBD_FORCE_SHORT_XFER | USBD_NO_COPY*/ 0, 5000 /*timeout*/,
 	    urtwm_txeof);
 	error = usbd_transfer(xfer);
 	printf("%s: error=%i\n", __func__, error);
@@ -1865,7 +1873,7 @@ rtw88_hci_setup(struct rtw_dev *rtwdev)
 static inline u32
 rtw_read32_mask(struct rtw_dev *rtwdev, u32 addr, u32 mask)
 {
-	u32 shift = ffs(mask);
+	u32 shift = __ffs(mask);
 	u32 orig;
 	u32 ret;
 
@@ -1929,14 +1937,17 @@ bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target)
 	u32 cnt;
 
 	for (cnt = 0; cnt < 1000; cnt++) {
-		if (rtw_read32_mask(rtwdev, addr, mask) == target)
+		if (rtw_read32_mask(rtwdev, addr, mask) == target) {
 			return true;
+		}
 
 		// XXX:misha udelay?
 //		  udelay(10);
 		DELAY(1000);
 	}
 
+	printf("%s: target=%d\n", __func__, target);
+	printf("%s: rtw_read32_mask(rtwdev, addr, mask)=%d\n", __func__, rtw_read32_mask(rtwdev, addr, mask));
 	return false;
 }
 
@@ -3180,6 +3191,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 		    sc->sc_pdev->dv_xname, __func__, num_out_pipes);
 		return EINVAL;
 	}
+	printf("%s: num_out_pipes=%d\n", __func__, num_out_pipes);
 	rqpn = &chip->rqpn_table[num_out_pipes];
 //
 //	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID0] = dma_mapping_to_ep(rqpn->dma_map_be);
