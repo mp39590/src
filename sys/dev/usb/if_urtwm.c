@@ -1865,6 +1865,7 @@ static int rtw_usb_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf,
 	struct rtw_tx_pkt_info pkt_info = {0};
 
 	pkt_info.tx_pkt_size = size;
+	printf("%s: pkt_info.tx_pkt_size=%d\n", __func__, pkt_info.tx_pkt_size);
 	pkt_info.qsel = TX_DESC_QSEL_BEACON;
 	pkt_info.offset = chip->tx_pkt_desc_sz;
 	// TODO: linux 85bf3041a0ea4
@@ -2194,9 +2195,12 @@ start_download_firmware(struct rtw_dev *rtwdev, const u8 *data, u32 size)
 	int ret;
 
 	dmem_size = le32_to_cpu(fw_hdr->dmem_size);
+	printf("%s: dmem_size=0x%x\n", __func__, dmem_size);
 	imem_size = le32_to_cpu(fw_hdr->imem_size);
+	printf("%s: imem_size=0x%x\n", __func__, imem_size);
 	emem_size = (fw_hdr->mem_usage & BIT(4)) ?
 		    le32_to_cpu(fw_hdr->emem_size) : 0;
+	printf("%s: emem_size=0x%x\n", __func__, emem_size);
 	dmem_size += FW_HDR_CHKSUM_SIZE;
 	imem_size += FW_HDR_CHKSUM_SIZE;
 	emem_size += emem_size ? FW_HDR_CHKSUM_SIZE : 0;
