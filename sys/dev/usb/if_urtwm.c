@@ -1806,17 +1806,8 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 
 	// FIXME:misha -- must free, M_NOWAIT?
 	data = malloc(chip->tx_pkt_desc_sz + size, M_DEVBUF, M_NOWAIT);
+	memset(data, 0, chip->tx_pkt_desc_sz + size);
 	// TODO: must be free'ed
-	m = m_get(M_NOWAIT, M_DEVBUF);
-	if (m == NULL) {
-		printf("%s: m_get == NULL\n", __func__);
-		return ENOMEM;
-	}
-	m->m_data = data;
-	m->m_len = chip->tx_pkt_desc_sz + size;
-	m->m_nextpkt = NULL;
-	m->m_type = 0;
-	m->m_flags = 0;
 
 //	  skb = dev_alloc_skb(chip->tx_pkt_desc_sz + size);
 //	  if (unlikely(!skb))
@@ -1828,6 +1819,17 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 //	  memset(skb->data, 0, chip->tx_pkt_desc_sz);
 //	  rtw_tx_fill_tx_desc(pkt_info, skb);
 //	  rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, skb->data);
+	memcpy(data + chip->tx_pkt_desc_sz, buf, size);
+	m = m_get(M_NOWAIT, M_DEVBUF);
+	if (m == NULL) {
+		printf("%s: m_get == NULL\n", __func__);
+		return ENOMEM;
+	}
+	m->m_data = data;
+	m->m_len = chip->tx_pkt_desc_sz + size;
+	m->m_nextpkt = NULL;
+	m->m_type = 0;
+	m->m_flags = 0;
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
 
@@ -2050,6 +2052,7 @@ int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
 		bcn_valid_addr = REG_DWBCN0_CTRL;
 		bcn_valid_mask = BIT_BCN_VALID;
 	} else {
+		printf("%s: RTW88_WCPU_11AC\n", __func__);
 		bcn_valid_addr = REG_FIFOPAGE_CTRL_2;
 		bcn_valid_mask = BIT_BCN_VALID_V1;
 	}
@@ -2350,7 +2353,7 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 		printf("%s: !ltecoex_read_reg\n", __func__);
 		return -EBUSY;
 	} else
-		printf("%s: ltecoex works!\n", __func__);
+		printf("%s: ltecoex works! ltecoex_bckp=%d\n", __func__, ltecoex_bckp);
 //
 	wlan_cpu_enable(rtwdev, false);
 //
