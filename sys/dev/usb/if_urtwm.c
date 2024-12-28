@@ -1783,6 +1783,7 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 		printf("%s: could not alloc xfer\n", __func__);
 		return ENOMEM;
 	}
+//	buf = usbd_alloc_buffer(xfer, m->m_len);
 	buf = usbd_alloc_buffer(xfer, 8192);
 	if (buf == NULL) {
 		printf("%s: could not alloc buffer\n", __func__);
@@ -1794,7 +1795,7 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 //	}
 	memcpy(buf, m->m_data, m->m_len);
 	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
-	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, 5000 /*timeout*/,
+	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
 	    urtwm_txeof);
 	error = usbd_transfer(xfer);
 	printf("%s: error=%i\n", __func__, error);
@@ -1846,6 +1847,9 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	m->m_flags = 0;
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
+
+//	ret = rtw_usb_write_port(rtwdev, qsel, skb,
+//	    rtw_usb_write_port_complete, skb);
 
 	ret = rtw_usb_write_port(rtwdev, qsel, m);
 //	  if (unlikely(ret))
@@ -1955,9 +1959,8 @@ bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target)
 	u32 cnt;
 
 	for (cnt = 0; cnt < 1000; cnt++) {
-		if (rtw_read32_mask(rtwdev, addr, mask) == target) {
+		if (rtw_read32_mask(rtwdev, addr, mask) == target)
 			return true;
-		}
 
 		// XXX:misha udelay?
 //		  udelay(10);
