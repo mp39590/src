@@ -1788,7 +1788,7 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 //	}
 	memcpy(buf, m->m_data, m->m_len);
 	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
-	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, 7000 /*timeout*/,
+	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, 5000 /*timeout*/,
 	    urtwm_txeof);
 	error = usbd_transfer(xfer);
 	printf("%s: error=%i\n", __func__, error);
@@ -1857,6 +1857,8 @@ static int rtw_usb_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf,
 	pkt_info.tx_pkt_size = size;
 	pkt_info.qsel = TX_DESC_QSEL_BEACON;
 	pkt_info.offset = chip->tx_pkt_desc_sz;
+	// TODO: linux 85bf3041a0ea4
+//	pkt_info.ls = true;
 
 	return rtw_usb_write_data(rtwdev, &pkt_info, buf);
 }
