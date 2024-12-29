@@ -4581,7 +4581,7 @@ struct rtw88_softc {
 };
 
 struct urtwm_softc {
-	struct device			*sc_pdev;
+	struct device			sc_pdev;
 	struct ieee80211com		sc_ic;
 	struct rtw88_softc		sc_sc;
 
@@ -6093,7 +6093,7 @@ rtw88_pwr_cmd_polling(struct rtw_dev *rtwdev, const struct rtw88_pwr_seq_cmd *cm
 
 err:
 	printf("%s: %s: failed to poll offset=0x%x mask=0x%x value=0x%x\n",
-	     sc->sc_pdev->dv_xname, __func__, offset, cmd->mask, cmd->value);
+	     sc->sc_pdev.dv_xname, __func__, offset, cmd->mask, cmd->value);
 	return EBUSY;
 }
 
@@ -6348,7 +6348,7 @@ rtw88_mac_power_on(struct rtw_dev *rtwdev)
 	return 0;
 
 err:
-	printf("%s: %s: mac power on failed, error=%i", sc->sc_pdev->dv_xname,
+	printf("%s: %s: mac power on failed, error=%i", sc->sc_pdev.dv_xname,
 	    __func__, ret);
 	return ret;
 }
@@ -6756,14 +6756,14 @@ rtw88_chip_efuse_enable(struct rtw_dev *rtwdev)
 	ret = rtw88_hci_setup(rtwdev);
 	if (ret) {
 		printf("%s: %s: failed to setup hci, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, ret);
+		    sc->sc_pdev.dv_xname, __func__, ret);
 		goto err;
 	}
 
 	ret = rtw88_mac_power_on(rtwdev);
 	if (ret) {
 		printf("%s: %s: failed to power on mac, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, ret);
+		    sc->sc_pdev.dv_xname, __func__, ret);
 		goto err;
 	}
 
@@ -6779,7 +6779,7 @@ rtw88_chip_efuse_enable(struct rtw_dev *rtwdev)
 	ret = loadfirmware(rtwdev->chip->fw_name, &fw->fwdata, &fw->fwsize);
 	if (ret) {
 		printf("%s: %s: could not read %s, error=%i\n",
-		    sc->sc_pdev->dv_xname, __func__, rtwdev->chip->fw_name,
+		    sc->sc_pdev.dv_xname, __func__, rtwdev->chip->fw_name,
 		    ret);
 		goto err;
 	};
@@ -6788,8 +6788,7 @@ rtw88_chip_efuse_enable(struct rtw_dev *rtwdev)
 	ret = rtw_download_firmware(rtwdev, fw);
 	if (ret) {
 		printf("%s: %s: failed to download firmware, error=%i\n",
-//		    sc->sc_pdev->dv_xname, __func__, ret);
-		    "HARDCODED NOT NULL", __func__, ret);
+		    sc->sc_pdev.dv_xname, __func__, ret);
 		goto err_off;
 	}
 
@@ -6810,7 +6809,7 @@ static void rtw_chip_efuse_disable(struct rtw_dev *rtwdev)
 
 int
 rtw88_chip_efuse_info_setup(struct rtw_dev *rtwdev) {
-//	struct urtwm_softc *sc = rtwdev->cookie;
+	struct urtwm_softc *sc = rtwdev->cookie;
 	struct rtw88_efuse *efuse = &rtwdev->efuse;
 	int ret;
 
@@ -6818,8 +6817,7 @@ rtw88_chip_efuse_info_setup(struct rtw_dev *rtwdev) {
 	ret = rtw88_chip_efuse_enable(rtwdev);
 	if (ret) {
 		printf("%s: %s: rtw_chip_efuse_enable failed, error=%i\n",
-//		    sc->sc_pdev->dv_xname, __func__, ret);
-		    "HARDCODED NOT NULL", __func__, ret);
+		    sc->sc_pdev.dv_xname, __func__, ret);
 		return ret;
 	};
 
@@ -6902,7 +6900,7 @@ rtw88_chip_parameter_setup(struct rtw_dev *rtwdev)
 		break;
 	default:
 		printf("%s: %s: unsupported hci type\n",
-		    sc->sc_pdev->dv_xname, __func__);
+		    sc->sc_pdev.dv_xname, __func__);
 		return -EINVAL;
 	}
 
@@ -7027,7 +7025,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK) {
 			if (nrx) {
 				printf("%s: %s: IN pipes overflow\n",
-				    sc->sc_pdev->dv_xname, __func__);
+				    sc->sc_pdev.dv_xname, __func__);
 				return EINVAL;
 			}
 			rx_no = ed->bEndpointAddress;
@@ -7036,7 +7034,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 			    &sc->rx_pipe);
 			if (error != 0) {
 				printf("%s: %s could not open Rx bulk pipe, "
-				    "error=%i\n", sc->sc_pdev->dv_xname,
+				    "error=%i\n", sc->sc_pdev.dv_xname,
 				    __func__, error);
 				return EINVAL;
 			}
@@ -7067,7 +7065,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_INTERRUPT) {
 			if (nint) {
 				printf("%s: %s: INT pipes overflow\n",
-				    sc->sc_pdev->dv_xname, __func__);
+				    sc->sc_pdev.dv_xname, __func__);
 				return EINVAL;
 			}
 			int_no = ed->bEndpointAddress;
@@ -7076,7 +7074,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 			    &sc->int_pipe);
 			if (error != 0) {
 				printf("%s: %s could not open Int pipe, "
-				    "error=%i\n", sc->sc_pdev->dv_xname,
+				    "error=%i\n", sc->sc_pdev.dv_xname,
 				    __func__, error);
 				return EINVAL;
 			}
@@ -7087,7 +7085,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK) {
 			if (num_out_pipes >= nitems(sc->tx_pipe)) {
 				printf("%s: %s: OUT pipes overflow\n",
-				    sc->sc_pdev->dv_xname, __func__);
+				    sc->sc_pdev.dv_xname, __func__);
 				return EINVAL;
 			}
 			out_no = ed->bEndpointAddress;
@@ -7096,7 +7094,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 			if (error != 0) {
 				printf("%s: %s could not open Tx bulk pipe "
 				    "0x%02x\n, error=%i\n",
-				    sc->sc_pdev->dv_xname, __func__,  out_no,
+				    sc->sc_pdev.dv_xname, __func__,  out_no,
 				    error);
 				return EINVAL;
 			}
@@ -7112,7 +7110,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 //	}
 	if (num_out_pipes < 1 || num_out_pipes > 4) {
 		printf("%s: %s invalid number of endpoints %d\n",
-		    sc->sc_pdev->dv_xname, __func__, num_out_pipes);
+		    sc->sc_pdev.dv_xname, __func__, num_out_pipes);
 		return EINVAL;
 	}
 	rqpn = &chip->rqpn_table[num_out_pipes];
@@ -7640,8 +7638,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	if (ret) {
 //		rtw_err(rtwdev, "failed to init USB interface\n");
 		printf("%s: %s: failed to init USB interface, error=%i\n",
-//		    sc->sc_pdev->dv_xname, __func__, ret);
-		    "HARDCODED NOT NULL", __func__, ret);
+		    sc->sc_pdev.dv_xname, __func__, ret);
 		return;
 		// TODO: cleanup
 //		goto err_deinit_core;
@@ -7662,16 +7659,14 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	ret = rtw88_chip_parameter_setup(rtwdev);
 	if (ret) {
 		printf("%s: %s: failed to setup chip parameters, error=%i\n",
-//		    sc->sc_pdev->dv_xname, __func__, ret);
-		    "HARDCODED NOT NULL", __func__, ret);
+		    sc->sc_pdev.dv_xname, __func__, ret);
 		return;
 	}
 
 	ret = rtw88_chip_efuse_info_setup(rtwdev);
 	if (ret) {
 		printf("%s: %s: failed to setup chip efuse info, error=%i\n",
-//		    sc->sc_pdev->dv_xname, __func__, ret);
-		    "HARDCODED NOT NULL", __func__, ret);
+		    sc->sc_pdev.dv_xname, __func__, ret);
 		return;
 	}
 
