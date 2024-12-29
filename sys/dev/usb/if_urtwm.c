@@ -6453,6 +6453,12 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 		return;
 	}
 
+//        ret = rtw_chip_board_info_setup(rtwdev);
+//        if (ret) {
+//                rtw_err(rtwdev, "failed to setup chip board info\n");
+//                goto err_out;
+//        }
+
 	printf("%s: ----- OK -----\n", __func__);
 	return;
 }
