@@ -1649,7 +1649,7 @@ void fill_txdesc_checksum_common(u8 *txdesc, size_t words)
 	while (words--)
 		chksum ^= *data++;
 
-	printf("%s: chksum=0x%x\n", __func__, chksum);
+//	printf("%s: chksum=0x%x\n", __func__, chksum);
 	le32p_replace_bits(&tx_desc->w7, __le16_to_cpu(chksum),
 			   RTW_TX_DESC_W7_TXDESC_CHECKSUM);
 }
@@ -1748,13 +1748,13 @@ void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-	printf("%s: TX status=%d\n", __func__, status);
+//	printf("%s: TX status=%d\n", __func__, status);
 }
 void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-	printf("%s: TX status=%d\n", __func__, status);
+//	printf("%s: TX status=%d\n", __func__, status);
 }
 //static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct sk_buff *skb,
 //                              usb_complete_t cb, void *context)
@@ -1771,7 +1771,7 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 	uint8_t *buf;
 	int error;
         int ep = qsel_to_ep(rtwdev, qsel);
-        printf("%s: ep=%i\n", __func__, ep);
+//        printf("%s: ep=%i\n", __func__, ep);
 //
 	if (ep < 0)
 		return ep;
@@ -1806,12 +1806,12 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 //		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 //	}
 	memcpy(buf, m->m_data, m->m_len);
-	printf("%s: m->m_len=%d\n", __func__, m->m_len);
+//	printf("%s: m->m_len=%d\n", __func__, m->m_len);
 	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
 	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
 	    urtwm_txeof);
 	error = usbd_transfer(xfer);
-	printf("%s: error=%i\n", __func__, error);
+//	printf("%s: error=%i\n", __func__, error);
 
 	return 0;
 
@@ -1878,7 +1878,7 @@ static int rtw_usb_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf,
 	struct rtw_tx_pkt_info pkt_info = {0};
 
 	pkt_info.tx_pkt_size = size;
-	printf("%s: pkt_info.tx_pkt_size=%d\n", __func__, pkt_info.tx_pkt_size);
+//	printf("%s: pkt_info.tx_pkt_size=%d\n", __func__, pkt_info.tx_pkt_size);
 	pkt_info.qsel = TX_DESC_QSEL_BEACON;
 	pkt_info.offset = chip->tx_pkt_desc_sz;
 	// TODO: linux 85bf3041a0ea4
@@ -1981,8 +1981,8 @@ bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target)
 		DELAY(10);
 	}
 
-	printf("%s: target=%d\n", __func__, target);
-	printf("%s: rtw_read32_mask(rtwdev, addr, mask)=%d\n", __func__, rtw_read32_mask(rtwdev, addr, mask));
+//	printf("%s: target=%d\n", __func__, target);
+//	printf("%s: rtw_read32_mask(rtwdev, addr, mask)=%d\n", __func__, rtw_read32_mask(rtwdev, addr, mask));
 	return false;
 }
 
@@ -2080,7 +2080,6 @@ static int download_firmware_validate(struct rtw_dev *rtwdev)
                 fw_key = rtw_read32(rtwdev, REG_FW_DBG7) & FW_KEY_MASK;
                 if (fw_key == ILLEGAL_KEY_GROUP)
                         printf("%s: invalid fw key\n", __func__);
-                printf("%s: will return EINVAL\n", __func__);
                 return -EINVAL;
         }
 
@@ -2233,7 +2232,7 @@ int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
 		bcn_valid_addr = REG_DWBCN0_CTRL;
 		bcn_valid_mask = BIT_BCN_VALID;
 	} else {
-		printf("%s: RTW88_WCPU_11AC\n", __func__);
+//		printf("%s: RTW88_WCPU_11AC\n", __func__);
 		bcn_valid_addr = REG_FIFOPAGE_CTRL_2;
 		bcn_valid_mask = BIT_BCN_VALID_V1;
 	}
@@ -2531,10 +2530,9 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 //
 	// TODO: returns EBUSY
 	if (!ltecoex_read_reg(rtwdev, 0x38, &ltecoex_bckp)) {
-		printf("%s: !ltecoex_read_reg\n", __func__);
+//		printf("%s: !ltecoex_read_reg\n", __func__);
 		return -EBUSY;
-	} else
-		printf("%s: ltecoex works! ltecoex_bckp=%d\n", __func__, ltecoex_bckp);
+	}
 //
 	wlan_cpu_enable(rtwdev, false);
 //
@@ -2543,7 +2541,6 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 //
 	ret = start_download_firmware(rtwdev, data, size);
 	if (ret) {
-		printf("%s: start_download_firmware=%d\n", __func__, ret);
 		goto dlfw_fail;
 	};
 //
@@ -2627,9 +2624,7 @@ __rtw88_mac_init_system_cfg(struct rtw_dev *rtwdev)
 
 	/* disable boot-from-flash for driver's DL FW */
 	tmp = rtw88_read32(rtwdev, RTW88_REG_MCUFW_CTRL);
-	printf("%s: tmp=0x%x\n", __func__, tmp);
 	if (tmp & RTW88_BIT_BOOT_FSPI_EN) {
-		printf("%s: RTW88_BIT_BOOT_FSPI_EN\n", __func__);
 		rtw88_write32(rtwdev, RTW88_REG_MCUFW_CTRL, tmp & (~RTW88_BIT_BOOT_FSPI_EN));
 		value = rtw88_read32(rtwdev, RTW88_REG_GPIO_MUXCFG) & (~RTW88_BIT_FSPI_EN);
 		rtw88_write32(rtwdev, RTW88_REG_GPIO_MUXCFG, value);
@@ -3003,7 +2998,6 @@ rtw88_mac_power_on(struct rtw_dev *rtwdev)
 		goto err;
 
 	ret = rtw88_mac_power_switch(rtwdev, 1);
-	printf("%s: rtw88_mac_power_switch=%i\n", __func__, ret);
 	if (ret == EALREADY) {
 		rtw88_mac_power_switch(rtwdev, false);
 
@@ -3191,7 +3185,6 @@ rtw88_chip_parameter_setup(struct rtw_dev *rtwdev)
 
 
 	hal->chip_version = rtw88_read32(rtwdev, RTW88_REG_SYS_CFG1);
-	printf("%s: chip_version=%i\n", __func__, hal->chip_version);
 	hal->cut_version = RTW88_BIT_GET_CHIP_VER(hal->chip_version);
 	hal->mp_chip = (hal->chip_version & RTW88_BIT_RTL_ID) ? 0 : 1;
 
@@ -3294,7 +3287,6 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 //		}
 //	}
 	for (i = 0; i < id->bNumEndpoints; i++) {
-		printf("%s: i=%i\n", __func__, i);
 		ed = usbd_interface2endpoint_descriptor(sc->sc_iface, i);
 //
 ////		if (ed == NULL || UE_GET_XFERTYPE(ed->bmAttributes) != UE_BULK)
@@ -3376,7 +3368,6 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 				return EINVAL;
 			}
 			out_no = ed->bEndpointAddress;
-			printf("%s: num_out_pipes=%i out_no=%i\n", __func__, num_out_pipes, out_no);
 			error = usbd_open_pipe(sc->sc_iface, out_no, 0,
 			    &sc->tx_pipe[num_out_pipes++]);
 			if (error != 0) {
@@ -3401,7 +3392,6 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 		    sc->sc_pdev->dv_xname, __func__, num_out_pipes);
 		return EINVAL;
 	}
-	printf("%s: num_out_pipes=%d\n", __func__, num_out_pipes);
 	rqpn = &chip->rqpn_table[num_out_pipes];
 //
 //	rtwusb->qsel_to_ep[TX_DESC_QSEL_TID0] = dma_mapping_to_ep(rqpn->dma_map_be);
