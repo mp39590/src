@@ -2571,6 +2571,10 @@ void rtw_parse_tbl_bb_pg(struct rtw_dev *rtwdev, const struct rtw_table *tbl)
 
 // {{{ data structures
 
+
+/* now, support up to 80M bw */
+#define RTW_MAX_CHANNEL_WIDTH RTW_CHANNEL_WIDTH_80
+
 enum rtw_rate_section {
         RTW_RATE_SECTION_CCK = 0,
         RTW_RATE_SECTION_OFDM,
@@ -4137,7 +4141,7 @@ struct rtw88_hal {
 //	/* center channel for different available bandwidth,
 //	 * val of (bw > current_band_width) is invalid
 //	 */
-//	uint8_t cch_by_bw[RTW_MAX_CHANNEL_WIDTH + 1];
+	uint8_t cch_by_bw[RTW_MAX_CHANNEL_WIDTH + 1];
 //
 //	uint8_t sec_ch_offset;
 	uint8_t rf_type;
@@ -4154,10 +4158,10 @@ struct rtw88_hal {
 	    [DESC_RATE_MAX];
 	s8 tx_pwr_by_rate_offset_5g[RTW_RF_PATH_MAX]
 	    [DESC_RATE_MAX];
-//	s8 tx_pwr_by_rate_base_2g[RTW_RF_PATH_MAX]
-//				 [RTW_RATE_SECTION_MAX];
-//	s8 tx_pwr_by_rate_base_5g[RTW_RF_PATH_MAX]
-//				 [RTW_RATE_SECTION_MAX];
+	s8 tx_pwr_by_rate_base_2g[RTW_RF_PATH_MAX]
+	    [RTW_RATE_SECTION_MAX];
+	s8 tx_pwr_by_rate_base_5g[RTW_RF_PATH_MAX]
+	    [RTW_RATE_SECTION_MAX];
 	s8 tx_pwr_limit_2g[RTW_REGD_MAX]
 	    [RTW_CHANNEL_WIDTH_MAX]
 	    [RTW_RATE_SECTION_MAX]
@@ -7148,6 +7152,127 @@ static int rtw_usb_intf_init(struct rtw_dev *rtwdev)
 
 // {{{ rtw_chip_board_info_setup
 
+static void
+__rtw_phy_tx_power_limit_config(struct rtw_hal *hal, u8 regd, u8 bw, u8 rs)
+{
+        s8 base;
+        u8 ch;
+
+        for (ch = 0; ch < RTW_MAX_CHANNEL_NUM_2G; ch++) {
+                base = hal->tx_pwr_by_rate_base_2g[0][rs];
+                hal->tx_pwr_limit_2g[regd][bw][rs][ch] -= base;
+        }
+
+        for (ch = 0; ch < RTW_MAX_CHANNEL_NUM_5G; ch++) {
+                base = hal->tx_pwr_by_rate_base_5g[0][rs];
+                hal->tx_pwr_limit_5g[regd][bw][rs][ch] -= base;
+        }
+}
+
+void rtw_phy_tx_power_limit_config(struct rtw_hal *hal)
+{
+        u8 regd, bw, rs;
+
+        /* default at channel 1 */
+        hal->cch_by_bw[RTW_CHANNEL_WIDTH_20] = 1;
+
+        for (regd = 0; regd < RTW_REGD_MAX; regd++)
+                for (bw = 0; bw < RTW_CHANNEL_WIDTH_MAX; bw++)
+                        for (rs = 0; rs < RTW_RATE_SECTION_MAX; rs++)
+                                __rtw_phy_tx_power_limit_config(hal, regd, bw, rs);
+}
+
+
+
+static void
+rtw_phy_tx_power_by_rate_config_by_path(struct rtw_hal *hal, u8 path,
+                                        u8 rs, u8 size, u8 *rates)
+{
+        u8 rate;
+        u8 base_idx, rate_idx;
+        s8 base_2g, base_5g;
+
+        if (rs >= RTW_RATE_SECTION_VHT_1S)
+                base_idx = rates[size - 3];
+        else
+                base_idx = rates[size - 1];
+        base_2g = hal->tx_pwr_by_rate_offset_2g[path][base_idx];
+        base_5g = hal->tx_pwr_by_rate_offset_5g[path][base_idx];
+        hal->tx_pwr_by_rate_base_2g[path][rs] = base_2g;
+        hal->tx_pwr_by_rate_base_5g[path][rs] = base_5g;
+        for (rate = 0; rate < size; rate++) {
+                rate_idx = rates[rate];
+                hal->tx_pwr_by_rate_offset_2g[path][rate_idx] -= base_2g;
+                hal->tx_pwr_by_rate_offset_5g[path][rate_idx] -= base_5g;
+        }
+}
+
+
+u8 rtw_cck_rates[] = { DESC_RATE1M, DESC_RATE2M, DESC_RATE5_5M, DESC_RATE11M };
+u8 rtw_ofdm_rates[] = {
+        DESC_RATE6M,  DESC_RATE9M,  DESC_RATE12M,
+        DESC_RATE18M, DESC_RATE24M, DESC_RATE36M,
+        DESC_RATE48M, DESC_RATE54M
+};
+u8 rtw_ht_1s_rates[] = {
+        DESC_RATEMCS0, DESC_RATEMCS1, DESC_RATEMCS2,
+        DESC_RATEMCS3, DESC_RATEMCS4, DESC_RATEMCS5,
+        DESC_RATEMCS6, DESC_RATEMCS7
+};
+u8 rtw_ht_2s_rates[] = {
+        DESC_RATEMCS8,  DESC_RATEMCS9,  DESC_RATEMCS10,
+        DESC_RATEMCS11, DESC_RATEMCS12, DESC_RATEMCS13,
+        DESC_RATEMCS14, DESC_RATEMCS15
+};
+u8 rtw_vht_1s_rates[] = {
+        DESC_RATEVHT1SS_MCS0, DESC_RATEVHT1SS_MCS1,
+        DESC_RATEVHT1SS_MCS2, DESC_RATEVHT1SS_MCS3,
+        DESC_RATEVHT1SS_MCS4, DESC_RATEVHT1SS_MCS5,
+        DESC_RATEVHT1SS_MCS6, DESC_RATEVHT1SS_MCS7,
+        DESC_RATEVHT1SS_MCS8, DESC_RATEVHT1SS_MCS9
+};
+u8 rtw_vht_2s_rates[] = {
+        DESC_RATEVHT2SS_MCS0, DESC_RATEVHT2SS_MCS1,
+        DESC_RATEVHT2SS_MCS2, DESC_RATEVHT2SS_MCS3,
+        DESC_RATEVHT2SS_MCS4, DESC_RATEVHT2SS_MCS5,
+        DESC_RATEVHT2SS_MCS6, DESC_RATEVHT2SS_MCS7,
+        DESC_RATEVHT2SS_MCS8, DESC_RATEVHT2SS_MCS9
+};
+
+
+static const u8 rtw_cck_size = ARRAY_SIZE(rtw_cck_rates);
+static const u8 rtw_ofdm_size = ARRAY_SIZE(rtw_ofdm_rates);
+static const u8 rtw_ht_1s_size = ARRAY_SIZE(rtw_ht_1s_rates);
+static const u8 rtw_ht_2s_size = ARRAY_SIZE(rtw_ht_2s_rates);
+static const u8 rtw_vht_1s_size = ARRAY_SIZE(rtw_vht_1s_rates);
+static const u8 rtw_vht_2s_size = ARRAY_SIZE(rtw_vht_2s_rates);
+
+void rtw_phy_tx_power_by_rate_config(struct rtw_hal *hal)
+{
+        u8 path;
+
+        for (path = 0; path < RTW_RF_PATH_MAX; path++) {
+                rtw_phy_tx_power_by_rate_config_by_path(hal, path,
+                                RTW_RATE_SECTION_CCK,
+                                rtw_cck_size, rtw_cck_rates);
+                rtw_phy_tx_power_by_rate_config_by_path(hal, path,
+                                RTW_RATE_SECTION_OFDM,
+                                rtw_ofdm_size, rtw_ofdm_rates);
+                rtw_phy_tx_power_by_rate_config_by_path(hal, path,
+                                RTW_RATE_SECTION_HT_1S,
+                                rtw_ht_1s_size, rtw_ht_1s_rates);
+                rtw_phy_tx_power_by_rate_config_by_path(hal, path,
+                                RTW_RATE_SECTION_HT_2S,
+                                rtw_ht_2s_size, rtw_ht_2s_rates);
+                rtw_phy_tx_power_by_rate_config_by_path(hal, path,
+                                RTW_RATE_SECTION_VHT_1S,
+                                rtw_vht_1s_size, rtw_vht_1s_rates);
+                rtw_phy_tx_power_by_rate_config_by_path(hal, path,
+                                RTW_RATE_SECTION_VHT_2S,
+                                rtw_vht_2s_size, rtw_vht_2s_rates);
+        }
+}
+
 
 static inline void rtw_load_table(struct rtw_dev *rtwdev,
                                   const struct rtw_table *tbl)
@@ -7257,8 +7382,8 @@ static int rtw_chip_board_info_setup(struct rtw_dev *rtwdev)
         rtw_phy_init_tx_power(rtwdev);
         rtw_load_table(rtwdev, rfe_def->phy_pg_tbl);
         rtw_load_table(rtwdev, rfe_def->txpwr_lmt_tbl);
-//        rtw_phy_tx_power_by_rate_config(hal);
-//        rtw_phy_tx_power_limit_config(hal);
+        rtw_phy_tx_power_by_rate_config(hal);
+        rtw_phy_tx_power_limit_config(hal);
 
         return 0;
 }
