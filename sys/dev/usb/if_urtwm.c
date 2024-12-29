@@ -1419,7 +1419,7 @@ rtw88_write16(struct rtw_dev *rtwdev, uint32_t addr, uint16_t val)
 }
 
 int
-rtw88_write32(struct rtw_dev *rtwdev, uint32_t addr, uint16_t val)
+rtw88_write32(struct rtw_dev *rtwdev, uint32_t addr, uint32_t val)
 {
 	return rtwdev->hci.ops->write32(rtwdev, addr, val);
 }
@@ -1469,6 +1469,17 @@ urtwm_write_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 	USETW(req.wValue, addr);
 	USETW(req.wIndex, 0);
 	USETW(req.wLength, len);
+
+#if 0
+	if (len == 1)
+		printf("%s: %08x -> 0x%02x\n", __func__, addr, *buf);
+	else if (len == 2)
+		printf("%s: %08x -> 0x%04x\n", __func__, addr, *(uint16_t *)buf);
+	else if (len == 4) {
+		printf("%s: %08x -> 0x%08x\n", __func__, addr, *((uint32_t *)buf));
+	}
+#endif
+
 	return (usbd_do_request(sc->sc_udev, &req, buf));
 }
 
