@@ -7256,7 +7256,7 @@ static int rtw_chip_board_info_setup(struct rtw_dev *rtwdev)
 
         rtw_phy_init_tx_power(rtwdev);
         rtw_load_table(rtwdev, rfe_def->phy_pg_tbl);
-//        rtw_load_table(rtwdev, rfe_def->txpwr_lmt_tbl);
+        rtw_load_table(rtwdev, rfe_def->txpwr_lmt_tbl);
 //        rtw_phy_tx_power_by_rate_config(hal);
 //        rtw_phy_tx_power_limit_config(hal);
 
