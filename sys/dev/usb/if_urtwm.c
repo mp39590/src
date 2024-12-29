@@ -2037,6 +2037,38 @@ urtwm_task(void *arg)
 
 // {{{ rtw88_download_firmware
 
+static int
+iddma_enable(struct rtw_dev *rtwdev, u32 src, u32 dst, u32 ctrl)
+{
+        rtw_write32(rtwdev, REG_DDMA_CH0SA, src);
+        rtw_write32(rtwdev, REG_DDMA_CH0DA, dst);
+        rtw_write32(rtwdev, REG_DDMA_CH0CTRL, ctrl);
+
+        if (!check_hw_ready(rtwdev, REG_DDMA_CH0CTRL, BIT_DDMACH0_OWN, 0))
+                return -EBUSY;
+
+        return 0;
+}
+
+static int iddma_download_firmware(struct rtw_dev *rtwdev, u32 src, u32 dst,
+                                   u32 len, u8 first)
+{
+        u32 ch0_ctrl = BIT_DDMACH0_CHKSUM_EN | BIT_DDMACH0_OWN;
+
+        if (!check_hw_ready(rtwdev, REG_DDMA_CH0CTRL, BIT_DDMACH0_OWN, 0))
+                return -EBUSY;
+
+        ch0_ctrl |= len & BIT_MASK_DDMACH0_DLEN;
+        if (!first)
+                ch0_ctrl |= BIT_DDMACH0_CHKSUM_CONT;
+
+        if (iddma_enable(rtwdev, src, dst, ch0_ctrl))
+                return -EBUSY;
+
+        return 0;
+}
+
+
 int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
 				u8 *buf, u32 size)
 {
@@ -2148,8 +2180,8 @@ static int
 download_firmware_to_mem(struct rtw_dev *rtwdev, const u8 *data,
 			 u32 src, u32 dst, u32 size)
 {
-//	  const struct rtw_chip_info *chip = rtwdev->chip;
-//	  u32 desc_size = chip->tx_pkt_desc_sz;
+	const struct rtw_chip_info *chip = rtwdev->chip;
+	u32 desc_size = chip->tx_pkt_desc_sz;
 	u8 first_part;
 	u32 mem_offset;
 	u32 residue_size;
@@ -2177,12 +2209,12 @@ download_firmware_to_mem(struct rtw_dev *rtwdev, const u8 *data,
 		if (ret)
 			return ret;
 
-//		  ret = iddma_download_firmware(rtwdev, OCPBASE_TXBUF_88XX +
-//						src + desc_size,
-//						dst + mem_offset, pkt_size,
-//						first_part);
-//		  if (ret)
-//			  return ret;
+		ret = iddma_download_firmware(rtwdev, OCPBASE_TXBUF_88XX +
+					src + desc_size,
+					dst + mem_offset, pkt_size,
+					first_part);
+		if (ret)
+			return ret;
 
 		first_part = 0;
 		mem_offset += pkt_size;
@@ -2208,12 +2240,9 @@ start_download_firmware(struct rtw_dev *rtwdev, const u8 *data, u32 size)
 	int ret;
 
 	dmem_size = le32_to_cpu(fw_hdr->dmem_size);
-	printf("%s: dmem_size=0x%x\n", __func__, dmem_size);
 	imem_size = le32_to_cpu(fw_hdr->imem_size);
-	printf("%s: imem_size=0x%x\n", __func__, imem_size);
 	emem_size = (fw_hdr->mem_usage & BIT(4)) ?
 		    le32_to_cpu(fw_hdr->emem_size) : 0;
-	printf("%s: emem_size=0x%x\n", __func__, emem_size);
 	dmem_size += FW_HDR_CHKSUM_SIZE;
 	imem_size += FW_HDR_CHKSUM_SIZE;
 	emem_size += emem_size ? FW_HDR_CHKSUM_SIZE : 0;
@@ -3396,6 +3425,8 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 		    "HARDCODED NOT NULL", __func__, ret);
 		return;
 	}
+
+	printf("%s: ----- OK -----\n", __func__);
 	return;
 }
 
