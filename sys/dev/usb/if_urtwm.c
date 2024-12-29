@@ -2225,10 +2225,16 @@ static const struct rtw_phy_pg_cfg_pair rtw8822b_bb_pg_type5[] = {
 
 RTW_DECL_TABLE_BB_PG(rtw8822b_bb_pg_type5);
 
+// TODO ATTENTION - GPL FUNCTION
+static inline unsigned int bcd2bin(unsigned int val)
+{
+	return ((val) & 0x0f) + ((val & 0xff) >> 4) * 10;
+}
+
 #define bcd_to_dec_pwr_by_rate(val, i) bcd2bin(val >> (i * 8))
 
 static u8 tbl_to_dec_pwr_by_rate(struct rtw_dev *rtwdev, u32 hex, u8 i);
-static inline u_char bcd2bin(int bcd);
+//static inline u_char bcd2bin(int bcd);
 
 static void
 rtw_phy_get_rate_values_of_txpwr_by_rate(struct rtw_dev *rtwdev,
@@ -4534,29 +4540,28 @@ static void rtw_phy_store_tx_power_by_rate(struct rtw_dev *rtwdev,
         }
 }
 
-u_char const bcd2bin_data[] = {
-         0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 0, 0, 0, 0, 0, 0,
-        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0, 0, 0,
-        20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 0, 0, 0, 0, 0, 0,
-        30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 0, 0, 0, 0, 0, 0,
-        40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 0, 0, 0, 0, 0, 0,
-        50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 0, 0, 0, 0, 0, 0,
-        60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 0, 0, 0, 0, 0, 0,
-        70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 0, 0, 0, 0, 0, 0,
-        80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 0, 0, 0, 0, 0, 0,
-        90, 91, 92, 93, 94, 95, 96, 97, 98, 99
-};
+//u_char const bcd2bin_data[] = {
+//         0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 0, 0, 0, 0, 0, 0,
+//        10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0, 0, 0,
+//        20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 0, 0, 0, 0, 0, 0,
+//        30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 0, 0, 0, 0, 0, 0,
+//        40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 0, 0, 0, 0, 0, 0,
+//        50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 0, 0, 0, 0, 0, 0,
+//        60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 0, 0, 0, 0, 0, 0,
+//        70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 0, 0, 0, 0, 0, 0,
+//        80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 0, 0, 0, 0, 0, 0,
+//        90, 91, 92, 93, 94, 95, 96, 97, 98, 99
+//};
 
 
-static inline u_char
-bcd2bin(int bcd)
-{
-
-//        KASSERT(bcd >= 0 && bcd < LIBKERN_LEN_BCD2BIN,
-//            ("invalid bcd %d", bcd));
-        return (bcd2bin_data[bcd]);
-}
-
+//static inline u_char
+//bcd2bin(int bcd)
+//{
+//
+////        KASSERT(bcd >= 0 && bcd < LIBKERN_LEN_BCD2BIN,
+////            ("invalid bcd %d", bcd));
+//        return (bcd2bin_data[bcd]);
+//}
 
 static u8 tbl_to_dec_pwr_by_rate(struct rtw_dev *rtwdev, u32 hex, u8 i)
 {
@@ -7147,7 +7152,6 @@ static int rtw_usb_intf_init(struct rtw_dev *rtwdev)
 static inline void rtw_load_table(struct rtw_dev *rtwdev,
                                   const struct rtw_table *tbl)
 {
-	return;
         (*tbl->parse)(rtwdev, tbl);
 }
 
