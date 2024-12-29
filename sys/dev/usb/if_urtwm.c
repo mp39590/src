@@ -2037,6 +2037,41 @@ urtwm_task(void *arg)
 
 // {{{ rtw88_download_firmware
 
+
+static bool
+check_fw_checksum(struct rtw_dev *rtwdev, u32 addr)
+{
+        u8 fw_ctrl;
+
+        fw_ctrl = rtw_read8(rtwdev, REG_MCUFW_CTRL);
+
+        if (rtw_read32(rtwdev, REG_DDMA_CH0CTRL) & BIT_DDMACH0_CHKSUM_STS) {
+                if (addr < OCPBASE_DMEM_88XX) {
+                        fw_ctrl |= BIT_IMEM_DW_OK;
+                        fw_ctrl &= ~BIT_IMEM_CHKSUM_OK;
+                        rtw_write8(rtwdev, REG_MCUFW_CTRL, fw_ctrl);
+                } else {
+                        fw_ctrl |= BIT_DMEM_DW_OK;
+                        fw_ctrl &= ~BIT_DMEM_CHKSUM_OK;
+                        rtw_write8(rtwdev, REG_MCUFW_CTRL, fw_ctrl);
+                }
+
+                printf("%s: invalid fw checksum\n", __func__);
+
+                return false;
+        }
+
+        if (addr < OCPBASE_DMEM_88XX) {
+                fw_ctrl |= (BIT_IMEM_DW_OK | BIT_IMEM_CHKSUM_OK);
+                rtw_write8(rtwdev, REG_MCUFW_CTRL, fw_ctrl);
+        } else {
+                fw_ctrl |= (BIT_DMEM_DW_OK | BIT_DMEM_CHKSUM_OK);
+                rtw_write8(rtwdev, REG_MCUFW_CTRL, fw_ctrl);
+        }
+
+        return true;
+}
+
 static int download_firmware_validate(struct rtw_dev *rtwdev)
 {
         u32 fw_key;
@@ -2302,8 +2337,8 @@ download_firmware_to_mem(struct rtw_dev *rtwdev, const u8 *data,
 		residue_size -= pkt_size;
 	}
 
-//	  if (!check_fw_checksum(rtwdev, dst))
-//		  return -EINVAL;
+	if (!check_fw_checksum(rtwdev, dst))
+		return -EINVAL;
 
 	return 0;
 }
