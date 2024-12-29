@@ -3031,6 +3031,8 @@ void rtw_mac_power_off(struct rtw_dev *rtwdev)
 
 // }}}
 
+// {{{ rtw88_chip_efuse_info_setup
+
 int
 rtw88_chip_efuse_enable(struct rtw_dev *rtwdev)
 {
@@ -3153,7 +3155,9 @@ rtw88_chip_efuse_info_setup(struct rtw_dev *rtwdev) {
 	return ret;
 }
 
-/* -------------------------------------------------------------------------- */
+// }}}
+
+// {{{ smaller stuff
 
 int
 rtw88_chip_parameter_setup(struct rtw_dev *rtwdev)
@@ -3462,6 +3466,8 @@ static int rtw_usb_intf_init(struct rtw_dev *rtwdev)
 
 	return 0;
 }
+
+// }}}
 
 void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
