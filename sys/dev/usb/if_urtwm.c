@@ -7522,6 +7522,88 @@ static int rtw_usb_switch_mode(struct rtw_dev *rtwdev)
 
 // }}}
 
+// {{{ rtw_core_init
+
+int rtw_core_init(struct rtw_dev *rtwdev)
+{
+//        const struct rtw_chip_info *chip = rtwdev->chip;
+//        struct rtw_coex *coex = &rtwdev->coex;
+//        int ret;
+//
+//        INIT_LIST_HEAD(&rtwdev->rsvd_page_list);
+//        INIT_LIST_HEAD(&rtwdev->txqs);
+//
+//        timer_setup(&rtwdev->tx_report.purge_timer,
+//                    rtw_tx_report_purge_timer, 0);
+//        rtwdev->tx_wq = alloc_workqueue("rtw_tx_wq", WQ_UNBOUND | WQ_HIGHPRI, 0);
+//        if (!rtwdev->tx_wq) {
+//                rtw_warn(rtwdev, "alloc_workqueue rtw_tx_wq failed\n");
+//                return -ENOMEM;
+//        }
+//
+//        INIT_DELAYED_WORK(&rtwdev->watch_dog_work, rtw_watch_dog_work);
+//        INIT_DELAYED_WORK(&coex->bt_relink_work, rtw_coex_bt_relink_work);
+//        INIT_DELAYED_WORK(&coex->bt_reenable_work, rtw_coex_bt_reenable_work);
+//        INIT_DELAYED_WORK(&coex->defreeze_work, rtw_coex_defreeze_work);
+//        INIT_DELAYED_WORK(&coex->wl_remain_work, rtw_coex_wl_remain_work);
+//        INIT_DELAYED_WORK(&coex->bt_remain_work, rtw_coex_bt_remain_work);
+//        INIT_DELAYED_WORK(&coex->wl_connecting_work, rtw_coex_wl_connecting_work);
+//        INIT_DELAYED_WORK(&coex->bt_multi_link_remain_work,
+//                          rtw_coex_bt_multi_link_remain_work);
+//        INIT_DELAYED_WORK(&coex->wl_ccklock_work, rtw_coex_wl_ccklock_work);
+//        INIT_WORK(&rtwdev->tx_work, rtw_tx_work);
+//        INIT_WORK(&rtwdev->c2h_work, rtw_c2h_work);
+//        INIT_WORK(&rtwdev->ips_work, rtw_ips_work);
+//        INIT_WORK(&rtwdev->fw_recovery_work, rtw_fw_recovery_work);
+//        INIT_WORK(&rtwdev->update_beacon_work, rtw_fw_update_beacon_work);
+//        INIT_WORK(&rtwdev->ba_work, rtw_txq_ba_work);
+//        skb_queue_head_init(&rtwdev->c2h_queue);
+//        skb_queue_head_init(&rtwdev->coex.queue);
+//        skb_queue_head_init(&rtwdev->tx_report.queue);
+//
+//        spin_lock_init(&rtwdev->txq_lock);
+//        spin_lock_init(&rtwdev->tx_report.q_lock);
+//
+//        mutex_init(&rtwdev->mutex);
+//        mutex_init(&rtwdev->hal.tx_power_mutex);
+//
+//        init_waitqueue_head(&rtwdev->coex.wait);
+//        init_completion(&rtwdev->lps_leave_check);
+//        init_completion(&rtwdev->fw_scan_density);
+//
+//        rtwdev->sec.total_cam_num = 32;
+//        rtwdev->hal.current_channel = 1;
+//        rtwdev->dm_info.fix_rate = U8_MAX;
+//
+//        rtw_stats_init(rtwdev);
+//
+	/* default rx filter setting */
+	rtwdev->hal.rcr = BIT_APP_FCS | BIT_APP_MIC | BIT_APP_ICV |
+	    BIT_PKTCTL_DLEN | BIT_HTC_LOC_CTRL | BIT_APP_PHYSTS |
+	    BIT_AB | BIT_AM | BIT_APM;
+//
+//        ret = rtw_load_firmware(rtwdev, RTW_NORMAL_FW);
+//        if (ret) {
+//                rtw_warn(rtwdev, "no firmware loaded\n");
+//                goto out;
+//        }
+//
+//        if (chip->wow_fw_name) {
+//                ret = rtw_load_firmware(rtwdev, RTW_WOWLAN_FW);
+//                if (ret) {
+//                        rtw_warn(rtwdev, "no wow firmware loaded\n");
+//                        wait_for_completion(&rtwdev->fw.completion);
+//                        if (rtwdev->fw.firmware)
+//                                release_firmware(rtwdev->fw.firmware);
+//                        goto out;
+//                }
+//        }
+
+        return 0;
+}
+
+// }}}
+
 void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
 {
@@ -7547,9 +7629,11 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 //		goto err_release_hw;
 //
 //	// TODO - ATTENTION - some flags are set here
-//	ret = rtw_core_init(rtwdev);
-//	if (ret)
+	ret = rtw_core_init(rtwdev);
+	if (ret) {
+		return;
 //		goto err_free_rx_bufs;
+	}
 
 	// TODO - setup usb before downloading firmware
 	ret = rtw_usb_intf_init(rtwdev);
@@ -7607,7 +7691,6 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
                 return;
 //                goto err_destroy_rxwq;
         }
-
 
 	printf("%s: ----- OK -----\n", __func__);
 	return;
