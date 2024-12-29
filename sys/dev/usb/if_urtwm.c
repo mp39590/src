@@ -110,6 +110,7 @@ __ffs(int mask)
 #include <dev/ic/rtw88/reg.h>
 
 #define rtw_hci_type rtw88_hci_type
+#define rtw_hal rtw88_hal
 
 // TODO:misha - must find another way
 #define __LITTLE_ENDIAN
@@ -117,6 +118,34 @@ __ffs(int mask)
 #define ETH_ALEN        6                /* Octets in one ethernet addr         */
 
 // {{{ data structures
+
+enum rtw_bandwidth {
+        RTW_CHANNEL_WIDTH_20    = 0,
+        RTW_CHANNEL_WIDTH_40    = 1,
+        RTW_CHANNEL_WIDTH_80    = 2,
+        RTW_CHANNEL_WIDTH_160   = 3,
+        RTW_CHANNEL_WIDTH_80_80 = 4,
+        RTW_CHANNEL_WIDTH_5     = 5,
+        RTW_CHANNEL_WIDTH_10    = 6,
+};
+
+
+enum rtw_c2h_cmd_id {
+        C2H_CCX_TX_RPT = 0x03,
+        C2H_BT_INFO = 0x09,
+        C2H_BT_MP_INFO = 0x0b,
+        C2H_BT_HID_INFO = 0x45,
+        C2H_RA_RPT = 0x0c,
+        C2H_HW_FEATURE_REPORT = 0x19,
+        C2H_WLAN_INFO = 0x27,
+        C2H_WLAN_RFON = 0x32,
+        C2H_BCN_FILTER_NOTIFY = 0x36,
+        C2H_ADAPTIVITY = 0x37,
+        C2H_SCAN_RESULT = 0x38,
+        C2H_HW_FEATURE_DUMP = 0xfd,
+        C2H_HALMAC = 0xff,
+};
+
 
 enum rtw_rf_path {
         RF_PATH_A = 0,
@@ -572,22 +601,6 @@ struct rtw_fw_hdr {
 	__le32 imem_addr;
 } __packed;
 
-enum rtw_c2h_cmd_id {
-	RTW88_C2H_CCX_TX_RPT = 0x03,
-	RTW88_C2H_BT_INFO = 0x09,
-	RTW88_C2H_BT_MP_INFO = 0x0b,
-	RTW88_C2H_BT_HID_INFO = 0x45,
-	RTW88_C2H_RA_RPT = 0x0c,
-	RTW88_C2H_HW_FEATURE_REPORT = 0x19,
-	RTW88_C2H_WLAN_INFO = 0x27,
-	RTW88_C2H_WLAN_RFON = 0x32,
-	RTW88_C2H_BCN_FILTER_NOTIFY = 0x36,
-	RTW88_C2H_ADAPTIVITY = 0x37,
-	RTW88_C2H_SCAN_RESULT = 0x38,
-	RTW88_C2H_HW_FEATURE_DUMP = 0xfd,
-	RTW88_C2H_HALMAC = 0xff,
-};
-
 enum rtw88_wlan_cpu {
 	RTW88_WCPU_11AC,
 	RTW88_WCPU_11N,
@@ -707,6 +720,7 @@ struct rtw88_chip_info {
 //	uint8_t csi_buf_pg_num;
 //	uint8_t dig_max;
 //	uint8_t dig_min;
+	bool hw_feature_report;
 //	uint8_t txgi_factor;
 //	bool is_pwr_by_rate_dec;
 //	bool rx_ldpc;
@@ -1289,6 +1303,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 //	.band = RTW_BAND_2G | RTW_BAND_5G,
 //	.page_size = TX_PAGE_SIZE,
 //	.dig_min = 0x1c,
+	.hw_feature_report = true,
 //	.ht_supported = true,
 //	.vht_supported = true,
 //	.lps_deep_mode_supported = BIT(LPS_DEEP_MODE_LCLK),
@@ -1962,6 +1977,19 @@ _leXp_replace_bits(32)
 //_uX_get_bits(32)
 //_uX_get_bits(16)
 _uX_get_bits(8)
+
+
+#define _leX_get_bits(_n)                                               \
+        static __inline uint ## _n ## _t                                \
+        le ## _n ## _get_bits(__le ## _n v, uint ## _n ## _t f)         \
+        {                                                               \
+                return ((le ## _n ## _to_cpu(v) & f) / ___lsb(f));      \
+        }
+
+//_leX_get_bits(64)
+_leX_get_bits(32)
+//_leX_get_bits(16)
+
 
 
 // -- defines end
@@ -3383,6 +3411,118 @@ void rtw_mac_power_off(struct rtw_dev *rtwdev)
 
 // {{{ rtw88_chip_efuse_info_setup
 
+#define HW_FEATURE_LEN                  13
+
+#define EFUSE_HW_CAP_IGNORE             0
+#define EFUSE_HW_CAP_PTCL_VHT           3
+#define EFUSE_HW_CAP_SUPP_BW80          7
+#define EFUSE_HW_CAP_SUPP_BW40          6
+
+#define EFUSE_READ_FAIL                 0xff
+
+#define GET_EFUSE_HW_CAP_HCI(hw_cap)                                           \
+        le32_get_bits(*((__le32 *)(hw_cap) + 0x01), GENMASK(3, 0))
+#define GET_EFUSE_HW_CAP_BW(hw_cap)                                            \
+        le32_get_bits(*((__le32 *)(hw_cap) + 0x01), GENMASK(18, 16))
+#define GET_EFUSE_HW_CAP_NSS(hw_cap)                                           \
+        le32_get_bits(*((__le32 *)(hw_cap) + 0x01), GENMASK(20, 19))
+#define GET_EFUSE_HW_CAP_ANT_NUM(hw_cap)                                       \
+        le32_get_bits(*((__le32 *)(hw_cap) + 0x01), GENMASK(23, 21))
+#define GET_EFUSE_HW_CAP_PTCL(hw_cap)                                          \
+        le32_get_bits(*((__le32 *)(hw_cap) + 0x01), GENMASK(27, 26))
+
+static u8 hw_bw_cap_to_bitamp(u8 bw_cap)
+{
+        u8 bw = 0;
+
+        switch (bw_cap) {
+        case EFUSE_HW_CAP_IGNORE:
+        case EFUSE_HW_CAP_SUPP_BW80:
+                bw |= BIT(RTW_CHANNEL_WIDTH_80);
+//                fallthrough;
+        case EFUSE_HW_CAP_SUPP_BW40:
+                bw |= BIT(RTW_CHANNEL_WIDTH_40);
+//                fallthrough;
+        default:
+                bw |= BIT(RTW_CHANNEL_WIDTH_20);
+                break;
+        }
+
+        return bw;
+}
+
+
+static void rtw_hw_config_rf_ant_num(struct rtw_dev *rtwdev, u8 hw_ant_num)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        struct rtw_hal *hal = &rtwdev->hal;
+
+        if (hw_ant_num == EFUSE_HW_CAP_IGNORE ||
+            hw_ant_num >= hal->rf_path_num)
+                return;
+
+        switch (hw_ant_num) {
+        case 1:
+                hal->rf_type = RF_1T1R;
+                hal->rf_path_num = 1;
+                if (!chip->fix_rf_phy_num)
+                        hal->rf_phy_num = hal->rf_path_num;
+                hal->antenna_tx = BB_PATH_A;
+                hal->antenna_rx = BB_PATH_A;
+                break;
+        default:
+//                WARN(1, "invalid hw configuration from efuse\n");
+                printf("%s: invalid hw configuration from efuse\n", __func__);
+                break;
+        }
+}
+
+static int rtw_dump_hw_feature(struct rtw_dev *rtwdev)
+{
+        struct rtw_efuse *efuse = &rtwdev->efuse;
+        u8 hw_feature[HW_FEATURE_LEN];
+        u8 id;
+        u8 bw;
+        int i;
+
+        if (!rtwdev->chip->hw_feature_report)
+                return 0;
+
+        id = rtw_read8(rtwdev, REG_C2HEVT);
+        if (id != C2H_HW_FEATURE_REPORT) {
+                printf("%s: failed to read hw feature report\n", __func__);
+                return -EBUSY;
+        }
+
+        for (i = 0; i < HW_FEATURE_LEN; i++)
+                hw_feature[i] = rtw_read8(rtwdev, REG_C2HEVT + 2 + i);
+
+        rtw_write8(rtwdev, REG_C2HEVT, 0);
+
+        bw = GET_EFUSE_HW_CAP_BW(hw_feature);
+        efuse->hw_cap.bw = hw_bw_cap_to_bitamp(bw);
+        efuse->hw_cap.hci = GET_EFUSE_HW_CAP_HCI(hw_feature);
+        efuse->hw_cap.nss = GET_EFUSE_HW_CAP_NSS(hw_feature);
+        efuse->hw_cap.ptcl = GET_EFUSE_HW_CAP_PTCL(hw_feature);
+        efuse->hw_cap.ant_num = GET_EFUSE_HW_CAP_ANT_NUM(hw_feature);
+
+        rtw_hw_config_rf_ant_num(rtwdev, efuse->hw_cap.ant_num);
+
+        if (efuse->hw_cap.nss == EFUSE_HW_CAP_IGNORE ||
+            efuse->hw_cap.nss > rtwdev->hal.rf_path_num)
+                efuse->hw_cap.nss = rtwdev->hal.rf_path_num;
+
+//        rtw_dbg(rtwdev, RTW_DBG_EFUSE,
+//                "hw cap: hci=0x%02x, bw=0x%02x, ptcl=0x%02x, ant_num=%d, nss=%d\n",
+//                efuse->hw_cap.hci, efuse->hw_cap.bw, efuse->hw_cap.ptcl,
+//                efuse->hw_cap.ant_num, efuse->hw_cap.nss);
+	printf("%s: hw cap: hci=0x%02x, bw=0x%02x, ptcl=0x%02x, ant_num=%d, nss=%d\n",
+	    __func__, efuse->hw_cap.hci, efuse->hw_cap.bw, efuse->hw_cap.ptcl,
+	    efuse->hw_cap.ant_num, efuse->hw_cap.nss);
+
+
+        return 0;
+}
 
 static void rtw8822bu_efuse_parsing(struct rtw_efuse *efuse,
                                     struct rtw8822b_efuse *map)
@@ -3646,7 +3786,7 @@ rtw88_chip_efuse_enable(struct rtw_dev *rtwdev)
 		goto err;
 	}
 
-	rtw88_write8(rtwdev, RTW88_REG_C2HEVT, RTW88_C2H_HW_FEATURE_DUMP);
+	rtw88_write8(rtwdev, REG_C2HEVT, C2H_HW_FEATURE_DUMP);
 
 	// TODO: remove linusism
 //	wait_for_completion(&fw->completion);
@@ -3706,9 +3846,9 @@ rtw88_chip_efuse_info_setup(struct rtw_dev *rtwdev) {
 	if (ret)
 		goto out_disable;
 //
-//	ret = rtw_dump_hw_feature(sc);
-//	if (ret)
-//		goto out_disable;
+	ret = rtw_dump_hw_feature(rtwdev);
+	if (ret)
+		goto out_disable;
 //
 //	ret = rtw_check_supported_rfe(sc);
 //	if (ret)
