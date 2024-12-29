@@ -1301,11 +1301,11 @@ struct rtw_dev {
 //
 //	struct rtw_tx_report tx_report;
 //
-//	struct {
-//		/* indicate the mail box to use with fw */
-//		uint8_t last_box_num;
-//		uint32_t seq;
-//	} h2c;
+	struct {
+		/* indicate the mail box to use with fw */
+		uint8_t last_box_num;
+		uint32_t seq;
+	} h2c;
 //
 //	/* lps power state & handler work */
 //	struct rtw_lps_conf lps_conf;
@@ -2037,6 +2037,87 @@ urtwm_task(void *arg)
 
 // {{{ rtw88_download_firmware
 
+static int download_firmware_validate(struct rtw_dev *rtwdev)
+{
+        u32 fw_key;
+
+        if (!check_hw_ready(rtwdev, REG_MCUFW_CTRL, FW_READY_MASK, FW_READY)) {
+                fw_key = rtw_read32(rtwdev, REG_FW_DBG7) & FW_KEY_MASK;
+                if (fw_key == ILLEGAL_KEY_GROUP)
+                        printf("%s: invalid fw key\n", __func__);
+                printf("%s: will return EINVAL\n", __func__);
+                return -EINVAL;
+        }
+
+        return 0;
+}
+
+bool ltecoex_reg_write(struct rtw_dev *rtwdev, u16 offset, u32 value)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        const struct rtw_ltecoex_addr *ltecoex = chip->ltecoex_addr;
+
+        if (!check_hw_ready(rtwdev, ltecoex->ctrl, LTECOEX_READY, 1))
+                return false;
+
+        rtw_write32(rtwdev, ltecoex->wdata, value);
+        rtw_write32(rtwdev, ltecoex->ctrl, 0xC00F0000 | offset);
+
+        return true;
+}
+
+static void download_firmware_end_flow(struct rtw_dev *rtwdev)
+{
+        u16 fw_ctrl;
+
+        rtw_write32(rtwdev, REG_TXDMA_STATUS, BTI_PAGE_OVF);
+
+        /* Check IMEM & DMEM checksum is OK or not */
+        fw_ctrl = rtw_read16(rtwdev, REG_MCUFW_CTRL);
+        if ((fw_ctrl & BIT_CHECK_SUM_OK) != BIT_CHECK_SUM_OK)
+                return;
+
+        fw_ctrl = (fw_ctrl | BIT_FW_DW_RDY) & ~BIT_MCUFWDL_EN;
+        rtw_write16(rtwdev, REG_MCUFW_CTRL, fw_ctrl);
+}
+
+
+void rtw_restore_reg(struct rtw_dev *rtwdev,
+                     struct rtw_backup_info *bckp, u32 num)
+{
+        u8 len;
+        u32 reg;
+        u32 val;
+        int i;
+
+        for (i = 0; i < num; i++, bckp++) {
+                len = bckp->len;
+                reg = bckp->reg;
+                val = bckp->val;
+
+                switch (len) {
+                case 1:
+                        rtw_write8(rtwdev, reg, (u8)val);
+                        break;
+                case 2:
+                        rtw_write16(rtwdev, reg, (u16)val);
+                        break;
+                case 4:
+                        rtw_write32(rtwdev, reg, (u32)val);
+                        break;
+                default:
+                        break;
+                }
+        }
+}
+
+static void download_firmware_reg_restore(struct rtw_dev *rtwdev,
+                                          struct rtw_backup_info *bckp,
+                                          u8 bckp_num)
+{
+        rtw_restore_reg(rtwdev, bckp, bckp_num);
+}
+
 static int
 iddma_enable(struct rtw_dev *rtwdev, u32 src, u32 dst, u32 ctrl)
 {
@@ -2431,28 +2512,28 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 		goto dlfw_fail;
 	};
 //
-//	download_firmware_reg_restore(rtwdev, bckp, DLFW_RESTORE_REG_NUM);
+	download_firmware_reg_restore(rtwdev, bckp, DLFW_RESTORE_REG_NUM);
 //
-//	download_firmware_end_flow(rtwdev);
+	download_firmware_end_flow(rtwdev);
 //
-//	wlan_cpu_enable(rtwdev, true);
+	wlan_cpu_enable(rtwdev, true);
 //
-//	if (!ltecoex_reg_write(rtwdev, 0x38, ltecoex_bckp)) {
-//		ret = -EBUSY;
-//		goto dlfw_fail;
-//	}
+	if (!ltecoex_reg_write(rtwdev, 0x38, ltecoex_bckp)) {
+		ret = -EBUSY;
+		goto dlfw_fail;
+	}
 //
-//	ret = download_firmware_validate(rtwdev);
-//	if (ret)
-//		goto dlfw_fail;
+	ret = download_firmware_validate(rtwdev);
+	if (ret)
+		goto dlfw_fail;
 //
-//	/* reset desc and index */
-//	rtw_hci_setup(rtwdev);
+	/* reset desc and index */
+	rtw88_hci_setup(rtwdev);
 //
-//	rtwdev->h2c.last_box_num = 0;
-//	rtwdev->h2c.seq = 0;
-//
-//	set_bit(RTW_FLAG_FW_RUNNING, rtwdev->flags);
+	rtwdev->h2c.last_box_num = 0;
+	rtwdev->h2c.seq = 0;
+
+	set_bit(RTW88_RTW_FLAG_FW_RUNNING, rtwdev->flags);
 //
 	return 0;
 //
