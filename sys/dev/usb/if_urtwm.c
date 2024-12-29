@@ -4903,6 +4903,44 @@ _uX_get_bits(8)
 _leX_get_bits(32)
 //_leX_get_bits(16)
 
+#define _uX_encode_bits(_n)                                             \
+        static __inline uint ## _n ## _t                                \
+        u ## _n ## _encode_bits(uint ## _n ## _t v, uint ## _n ## _t f) \
+        {                                                               \
+                return ((v & ___bitmask(f)) * ___lsb(f));               \
+        }
+
+//_uX_encode_bits(64)
+_uX_encode_bits(32)
+//_uX_encode_bits(16)
+//_uX_encode_bits(8)
+
+
+#define _uXp_replace_bits(_n)                                           \
+        static __inline void                                            \
+        u ## _n ## p_replace_bits(uint ## _n ## _t *p,                  \
+            uint ## _n ## _t v, uint ## _n ## _t f)                     \
+        {                                                               \
+                *p = (*p & ~f) | u ## _n ## _encode_bits(v, f);         \
+        }
+
+//_uXp_replace_bits(64)
+_uXp_replace_bits(32)
+//_uXp_replace_bits(16)
+//_uXp_replace_bits(8)
+
+
+#define _uX_get_bits(_n)                                                \
+        static __inline uint ## _n ## _t                                \
+        u ## _n ## _get_bits(uint ## _n ## _t v, uint ## _n ## _t f)    \
+        {                                                               \
+                return ((v & f) / ___lsb(f));                           \
+        }
+
+//_uX_get_bits(64)
+_uX_get_bits(32)
+//_uX_get_bits(16)
+//_uX_get_bits(8)
 
 
 // -- defines end
@@ -5219,13 +5257,13 @@ static inline void rtw_write8_set(struct rtw_dev *rtwdev, u32 addr, u8 bit)
 	rtw_write8(rtwdev, addr, val | bit);
 }
 
-//static inline void rtw_write16_set(struct rtw_dev *rtwdev, u32 addr, u16 bit)
-//{
-//	  u16 val;
-//
-//	  val = rtw_read16(rtwdev, addr);
-//	  rtw_write16(rtwdev, addr, val | bit);
-//}
+static inline void rtw_write16_set(struct rtw_dev *rtwdev, u32 addr, u16 bit)
+{
+	u16 val;
+
+	val = rtw_read16(rtwdev, addr);
+	rtw_write16(rtwdev, addr, val | bit);
+}
 //
 static inline void rtw_write32_set(struct rtw_dev *rtwdev, u32 addr, u32 bit)
 {
@@ -7390,6 +7428,100 @@ static int rtw_chip_board_info_setup(struct rtw_dev *rtwdev)
 
 // }}}
 
+// {{{ rtw_usb_switch_mode
+
+
+#undef USB_SPEED_LOW
+#undef USB_SPEED_FULL
+#undef USB_SPEED_HIGH
+#undef USB_SPEED_VARIABLE
+#undef USB_SPEED_SUPER
+// TODO: another GPL code
+enum usb_device_speed {
+	USB_SPEED_UNKNOWN = 0,			/* enumerating */
+	USB_SPEED_LOW, USB_SPEED_FULL,		/* usb 1.1 */
+	USB_SPEED_HIGH,				/* usb 2.0 */
+	USB_SPEED_VARIABLE,			/* wireless (usb 2.5) */
+	USB_SPEED_SUPER,			/* usb 3.0 */
+};
+
+static int rtw_usb_switch_mode_new(struct rtw_dev *rtwdev)
+{
+        enum usb_device_speed cur_speed;
+        u8 id = rtwdev->chip->id;
+        bool can_switch;
+        u32 pad_ctrl2;
+
+        if (rtw_read8(rtwdev, REG_SYS_CFG2 + 3) == 0x20)
+                cur_speed = USB_SPEED_SUPER;
+        else
+                cur_speed = USB_SPEED_HIGH;
+
+        if (cur_speed == USB_SPEED_SUPER)
+                return 0;
+
+        pad_ctrl2 = rtw_read32(rtwdev, REG_PAD_CTRL2);
+
+        can_switch = !!(pad_ctrl2 & (BIT_MASK_USB23_SW_MODE_V1 |
+                                     BIT_USB3_USB2_TRANSITION));
+
+        if (!can_switch) {
+//                rtw_dbg(rtwdev, RTW_DBG_USB,
+//                        "Switching to USB 3 mode unsupported by the chip\n");
+		printf("%s: Switching to USB 3 mode unsupported by the chip\n", __func__);
+                return 0;
+        }
+
+        /* At this point cur_speed is USB_SPEED_HIGH. If we already tried
+         * to switch don't try again - it's a USB 2 port.
+         */
+        if (u32_get_bits(pad_ctrl2, BIT_MASK_USB23_SW_MODE_V1) == BIT_USB_MODE_U3)
+                return 0;
+
+        /* Enable IO wrapper timeout */
+        if (id == RTW_CHIP_TYPE_8822B || id == RTW_CHIP_TYPE_8821C)
+                rtw_write8_clr(rtwdev, REG_SW_MDIO + 3, BIT(0));
+
+        u32p_replace_bits(&pad_ctrl2, BIT_USB_MODE_U3, BIT_MASK_USB23_SW_MODE_V1);
+        pad_ctrl2 |= BIT_RSM_EN_V1;
+
+        rtw_write32(rtwdev, REG_PAD_CTRL2, pad_ctrl2);
+        rtw_write8(rtwdev, REG_PAD_CTRL2 + 1, 4);
+
+        rtw_write16_set(rtwdev, REG_SYS_PW_CTRL, BIT_APFM_OFFMAC);
+//        usleep_range(1000, 1001);
+	DELAY(1000);
+        rtw_write32_set(rtwdev, REG_PAD_CTRL2, BIT_NO_PDN_CHIPOFF_V1);
+
+        return 1;
+}
+
+static int rtw_usb_switch_mode(struct rtw_dev *rtwdev)
+{
+        u8 id = rtwdev->chip->id;
+
+        if (id != RTW_CHIP_TYPE_8822C && id != RTW_CHIP_TYPE_8822B)
+                return 0;
+
+        if (!rtwdev->efuse.usb_mode_switch) {
+//                rtw_dbg(rtwdev, RTW_DBG_USB,
+//                        "Switching to USB 3 mode disabled by chip's efuse\n");
+		printf("%s: Switching to USB 3 mode disabled by chip's efuse\n", __func__);
+                return 0;
+        }
+
+//        if (!rtw_switch_usb_mode) {
+//                rtw_dbg(rtwdev, RTW_DBG_USB,
+//                        "Switching to USB 3 mode disabled by module parameter\n");
+//                return 0;
+//        }
+
+        return rtw_usb_switch_mode_new(rtwdev);
+}
+
+
+// }}}
+
 void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
 {
@@ -7465,6 +7597,17 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 		return;
 //		goto err_out;
 	}
+
+        ret = rtw_usb_switch_mode(rtwdev);
+        if (ret) {
+                /* Not a fail, but we do need to skip rtw_register_hw. */
+//                rtw_dbg(rtwdev, RTW_DBG_USB, "switching to USB 3 mode\n");
+                printf("%s: switching to USB 3 mode\n", __func__);
+                ret = 0;
+                return;
+//                goto err_destroy_rxwq;
+        }
+
 
 	printf("%s: ----- OK -----\n", __func__);
 	return;
