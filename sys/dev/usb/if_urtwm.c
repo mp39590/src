@@ -5056,7 +5056,7 @@ void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-//	printf("%s: TX status=%d\n", __func__, status);
+	printf("%s: RX status=%d\n", __func__, status);
 }
 void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
