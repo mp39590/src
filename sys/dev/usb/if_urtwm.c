@@ -7613,7 +7613,62 @@ urtwm_start(struct ifnet *ifp)
 int
 urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 {
-	return 0;
+	struct urtwm_softc *sc = ifp->if_softc;
+	int s, error = 0;
+
+	if (usbd_is_dying(sc->sc_udev))
+		return ENXIO;
+
+	// TODO: urtwn sets RTWN_FLAG_BUSY
+	usbd_ref_incr(sc->sc_udev);
+	s = splnet();
+	switch (cmd) {
+	case SIOCSIFADDR:
+		ifp->if_flags |= IFF_UP;
+		/* FALLTHROUGH */
+//	case SIOCSIFFLAGS:
+//		if (ifp->if_flags & IFF_UP) {
+//			if (!(ifp->if_flags & IFF_RUNNING))
+//				rtwn_init(ifp);
+//		} else {
+//			if (ifp->if_flags & IFF_RUNNING)
+//				rtwn_stop(ifp);
+//		}
+//		break;
+//	case SIOCS80211CHANNEL:
+//		error = ieee80211_ioctl(ifp, cmd, data);
+//		if (error == ENETRESET &&
+//		    ic->ic_opmode == IEEE80211_M_MONITOR) {
+//			if ((ifp->if_flags & (IFF_UP | IFF_RUNNING)) ==
+//			    (IFF_UP | IFF_RUNNING))
+//				rtwn_set_chan(sc, ic->ic_ibss_chan, NULL);
+//			error = 0;
+//		}
+//		break;
+	default:
+		error = ieee80211_ioctl(ifp, cmd, data);
+	}
+	splx(s);
+	usbd_ref_decr(sc->sc_udev);
+
+	return (error);
+}
+
+int
+urtwm_media_change(struct ifnet *ifp)
+{
+	int error;
+
+	error = ieee80211_media_change(ifp);
+	if (error != ENETRESET)
+		return (error);
+
+//	if ((ifp->if_flags & (IFF_UP | IFF_RUNNING)) ==
+//	    (IFF_UP | IFF_RUNNING)) {
+//		rtwn_stop(ifp);
+//		error = rtwn_init(ifp);
+//	}
+	return (error);
 }
 
 void
@@ -7732,7 +7787,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	/* Override state transition machine. */
 //	sc->sc_newstate = ic->ic_newstate;
 //	ic->ic_newstate = rtwn_newstate;
-//	ieee80211_media_init(ifp, rtwn_media_change, ieee80211_media_status);
+	ieee80211_media_init(ifp, urtwm_media_change, ieee80211_media_status);
 
 	printf("%s: ----- OK -----\n", __func__);
 	return;
