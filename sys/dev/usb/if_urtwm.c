@@ -7496,6 +7496,8 @@ static int rtw_usb_switch_mode_new(struct rtw_dev *rtwdev)
 
 static int rtw_usb_switch_mode(struct rtw_dev *rtwdev)
 {
+	// TODO: later - auto switch to USB3
+	return 0;
         u8 id = rtwdev->chip->id;
 
         if (id != RTW_CHIP_TYPE_8822C && id != RTW_CHIP_TYPE_8822B)
@@ -7603,12 +7605,27 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 // }}}
 
 void
+urtwm_start(struct ifnet *ifp)
+{
+	printf("%s: \n", __func__);
+}
+
+int
+urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
+{
+	return 0;
+}
+
+void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
 {
 	struct urtwm_softc *sc = (struct urtwm_softc *)self;
 	struct rtw88_softc *sc_sc = &sc->sc_sc;
 	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	struct usb_attach_arg *uaa = aux;
+	struct ieee80211com *ic = &sc->sc_ic;
+	struct ifnet *ifp = &ic->ic_if;
+        struct rtw_efuse *efuse = &rtwdev->efuse;
 	int ret;
 
 	sc->sc_udev = uaa->device;
@@ -7677,16 +7694,45 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 //		goto err_out;
 	}
 
-	// TODO: later - auto switch to USB3
-//        ret = rtw_usb_switch_mode(rtwdev);
-//        if (ret) {
-//                /* Not a fail, but we do need to skip rtw_register_hw. */
-////                rtw_dbg(rtwdev, RTW_DBG_USB, "switching to USB 3 mode\n");
-//                printf("%s: switching to USB 3 mode\n", __func__);
-//                ret = 0;
-//                return;
-////                goto err_destroy_rxwq;
-//        }
+	ret = rtw_usb_switch_mode(rtwdev);
+	if (ret) {
+		/* Not a fail, but we do need to skip rtw_register_hw. */
+		//                rtw_dbg(rtwdev, RTW_DBG_USB, "switching to USB 3 mode\n");
+		printf("%s: switching to USB 3 mode\n", __func__);
+		ret = 0;
+		return;
+		//                goto err_destroy_rxwq;
+	}
+
+
+	// ----- OpenBSD things -----
+	ic->ic_phytype = IEEE80211_T_OFDM;	/* Not only, but not used. */
+	ic->ic_opmode = IEEE80211_M_STA;	/* Default to BSS mode. */
+	ic->ic_state = IEEE80211_S_INIT;
+
+	/* Set device capabilities. */
+	ic->ic_caps = 0;
+//	    IEEE80211_C_MONITOR |	/* Monitor mode supported. */
+//	    IEEE80211_C_SHPREAMBLE |	/* Short preamble supported. */
+//	    IEEE80211_C_SHSLOT |	/* Short slot time supported. */
+//	    IEEE80211_C_WEP |		/* WEP. */
+//	    IEEE80211_C_RSN;		/* WPA/RSN. */
+
+	IEEE80211_ADDR_COPY(ic->ic_myaddr, efuse->addr);
+
+	ifp->if_softc = sc;
+	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
+	ifp->if_ioctl = urtwm_ioctl;
+	ifp->if_start = urtwm_start;
+//	ifp->if_watchdog = rtwn_watchdog;
+	memcpy(ifp->if_xname, sc->sc_pdev.dv_xname, IFNAMSIZ);
+	if_attach(ifp);
+	ieee80211_ifattach(ifp);
+
+	/* Override state transition machine. */
+//	sc->sc_newstate = ic->ic_newstate;
+//	ic->ic_newstate = rtwn_newstate;
+//	ieee80211_media_init(ifp, rtwn_media_change, ieee80211_media_status);
 
 	printf("%s: ----- OK -----\n", __func__);
 	return;
