@@ -7677,15 +7677,16 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 //		goto err_out;
 	}
 
-        ret = rtw_usb_switch_mode(rtwdev);
-        if (ret) {
-                /* Not a fail, but we do need to skip rtw_register_hw. */
-//                rtw_dbg(rtwdev, RTW_DBG_USB, "switching to USB 3 mode\n");
-                printf("%s: switching to USB 3 mode\n", __func__);
-                ret = 0;
-                return;
-//                goto err_destroy_rxwq;
-        }
+	// TODO: later - auto switch to USB3
+//        ret = rtw_usb_switch_mode(rtwdev);
+//        if (ret) {
+//                /* Not a fail, but we do need to skip rtw_register_hw. */
+////                rtw_dbg(rtwdev, RTW_DBG_USB, "switching to USB 3 mode\n");
+//                printf("%s: switching to USB 3 mode\n", __func__);
+//                ret = 0;
+//                return;
+////                goto err_destroy_rxwq;
+//        }
 
 	printf("%s: ----- OK -----\n", __func__);
 	return;
