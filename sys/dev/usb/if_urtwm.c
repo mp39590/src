@@ -3079,7 +3079,7 @@ struct rtw88_pwr_seq_cmd {
 };
 
 struct rtw_chip_ops {
-//        int (*power_on)(struct rtw_dev *rtwdev);
+        int (*power_on)(struct rtw_dev *rtwdev);
 //        void (*power_off)(struct rtw_dev *rtwdev);
 //        int (*mac_init)(struct rtw_dev *rtwdev);
 //        int (*dump_fw_crash)(struct rtw_dev *rtwdev);
@@ -3687,6 +3687,7 @@ static const struct rtw_rqpn rqpn_table_8822b[] = {
 };
 
 
+int rtw_power_on(struct rtw_dev *rtwdev);
 static void rtw8822b_cfg_ldo25(struct rtw_dev *rtwdev, bool enable);
 static int rtw8822b_read_efuse(struct rtw_dev *rtwdev, u8 *log_map);
 
@@ -3865,7 +3866,7 @@ static const struct rtw_rfe_def rtw8822b_rfe_defs[] = {
 };
 
 static const struct rtw_chip_ops rtw8822b_ops = {
-//        .power_on               = rtw_power_on,
+        .power_on               = rtw_power_on,
 //        .power_off              = rtw_power_off,
 //        .phy_set_param          = rtw8822b_phy_set_param,
         .read_efuse             = rtw8822b_read_efuse,
@@ -7604,6 +7605,108 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 // }}}
 
+// {{{ power_on
+
+int rtw_power_on(struct rtw_dev *rtwdev)
+{
+//        const struct rtw_chip_info *chip = rtwdev->chip;
+//        struct rtw_fw_state *fw = &rtwdev->fw;
+//        bool wifi_only;
+//        int ret;
+//
+//        ret = rtw_hci_setup(rtwdev);
+//        if (ret) {
+//                rtw_err(rtwdev, "failed to setup hci\n");
+//                goto err;
+//        }
+//
+//        /* power on MAC before firmware downloaded */
+//        ret = rtw_mac_power_on(rtwdev);
+//        if (ret) {
+//                rtw_err(rtwdev, "failed to power on mac\n");
+//                goto err;
+//        }
+//
+//        ret = rtw_wait_firmware_completion(rtwdev);
+//        if (ret) {
+//                rtw_err(rtwdev, "failed to wait firmware completion\n");
+//                goto err_off;
+//        }
+//
+//        ret = rtw_download_firmware(rtwdev, fw);
+//        if (ret) {
+//                rtw_err(rtwdev, "failed to download firmware\n");
+//                goto err_off;
+//        }
+//
+//        /* config mac after firmware downloaded */
+//        ret = rtw_mac_init(rtwdev);
+//        if (ret) {
+//                rtw_err(rtwdev, "failed to configure mac\n");
+//                goto err_off;
+//        }
+//
+//        chip->ops->phy_set_param(rtwdev);
+//
+//        ret = rtw_hci_start(rtwdev);
+//        if (ret) {
+//                rtw_err(rtwdev, "failed to start hci\n");
+//                goto err_off;
+//        }
+//
+//        /* send H2C after HCI has started */
+//        rtw_fw_send_general_info(rtwdev);
+//        rtw_fw_send_phydm_info(rtwdev);
+//
+//        wifi_only = !rtwdev->efuse.btcoex;
+//        rtw_coex_power_on_setting(rtwdev);
+//        rtw_coex_init_hw_config(rtwdev, wifi_only);
+//
+//        return 0;
+//
+//err_off:
+//        rtw_mac_power_off(rtwdev);
+//
+//err:
+//        return ret;
+	return 0;
+}
+
+
+// }}}
+
+int
+urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
+{
+//	struct urtwm_softc *sc = ic->ic_softc;
+	enum ieee80211_state ostate;
+	int /*ret,*/ s, error;
+
+	s = splnet();
+	ostate = ic->ic_state;
+
+	if (nstate != ostate)
+		printf("%s: newstate %s -> %s\n", __func__,
+		    ieee80211_state_name[ostate],
+		    ieee80211_state_name[nstate]);
+
+	switch (nstate) {
+	case IEEE80211_S_INIT:
+		// rtw_core_start
+//		ret = rtwdev->chip->ops->power_on(rtwdev);
+//		if (ret)
+//			return ret;
+		break;
+	default:
+		break;
+	}
+
+	error = ic->ic_newstate(ic, nstate, arg);
+	splx(s);
+
+	return (error);
+}
+
 void
 urtwm_start(struct ifnet *ifp)
 {
@@ -7786,7 +7889,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 
 	/* Override state transition machine. */
 //	sc->sc_newstate = ic->ic_newstate;
-//	ic->ic_newstate = rtwn_newstate;
+	ic->ic_newstate = urtwm_newstate;
 	ieee80211_media_init(ifp, urtwm_media_change, ieee80211_media_status);
 
 	printf("%s: ----- OK -----\n", __func__);
