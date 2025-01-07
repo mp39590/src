@@ -4117,7 +4117,7 @@ struct rtw88_hci {
 	uint32_t rpwm_addr;
 	uint32_t cpwm_addr;
 //
-//	uint8_t bulkout_num;
+	uint8_t bulkout_num;
 };
 
 struct rtw88_hal {
@@ -4208,7 +4208,7 @@ struct rtw_dev {
 //	struct rtw_hw_scan_info scan_info;
 	const struct rtw88_chip_info *chip;
 	struct rtw88_hal hal;
-//	struct rtw_fifo_conf fifo;
+	struct rtw_fifo_conf fifo;
 	struct rtw_fw_state fw;
 	struct rtw88_efuse efuse;
 //	struct rtw_sec_desc sec;
@@ -7103,7 +7103,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 
 	}
 
-//	rtwdev->hci.bulkout_num = num_out_pipes;
+	rtwdev->hci.bulkout_num = num_out_pipes;
 //
 //	if (num_out_pipes < 1 || num_out_pipes > 4) {
 //		rtw_err(rtwdev, "invalid number of endpoints %d\n", num_out_pipes);
@@ -7607,6 +7607,101 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 // {{{ power_on
 
+
+static int txdma_queue_mapping(struct rtw_dev *rtwdev)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        const struct rtw_rqpn *rqpn = NULL;
+        u16 txdma_pq_map = 0;
+
+        switch (rtw_hci_type(rtwdev)) {
+//        case RTW_HCI_TYPE_PCIE:
+//                rqpn = &chip->rqpn_table[1];
+//                break;
+        case RTW88_HCI_TYPE_USB:
+                if (rtwdev->hci.bulkout_num == 2)
+                        rqpn = &chip->rqpn_table[2];
+                else if (rtwdev->hci.bulkout_num == 3)
+                        rqpn = &chip->rqpn_table[3];
+                else if (rtwdev->hci.bulkout_num == 4)
+                        rqpn = &chip->rqpn_table[4];
+                else
+                        return -EINVAL;
+                break;
+//        case RTW_HCI_TYPE_SDIO:
+//                rqpn = &chip->rqpn_table[0];
+//                break;
+        default:
+                return -EINVAL;
+        }
+
+        rtwdev->fifo.rqpn = rqpn;
+        txdma_pq_map |= BIT_TXDMA_HIQ_MAP(rqpn->dma_map_hi);
+        txdma_pq_map |= BIT_TXDMA_MGQ_MAP(rqpn->dma_map_mg);
+        txdma_pq_map |= BIT_TXDMA_BKQ_MAP(rqpn->dma_map_bk);
+        txdma_pq_map |= BIT_TXDMA_BEQ_MAP(rqpn->dma_map_be);
+        txdma_pq_map |= BIT_TXDMA_VIQ_MAP(rqpn->dma_map_vi);
+        txdma_pq_map |= BIT_TXDMA_VOQ_MAP(rqpn->dma_map_vo);
+        rtw_write16(rtwdev, REG_TXDMA_PQ_MAP, txdma_pq_map);
+
+        rtw_write8(rtwdev, REG_CR, 0);
+        rtw_write8(rtwdev, REG_CR, MAC_TRX_ENABLE);
+        if (rtw88_chip_wcpu_11ac(rtwdev))
+                rtw_write32(rtwdev, REG_H2CQ_CSR, BIT_H2CQ_FULL);
+
+        if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_SDIO) {
+        	// XXX: usb only
+//                rtw_read32(rtwdev, REG_SDIO_FREE_TXPG);
+//                rtw_write32(rtwdev, REG_SDIO_TX_CTRL, 0);
+        } else if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_USB) {
+                rtw_write8_set(rtwdev, REG_TXDMA_PQ_MAP, BIT_RXDMA_ARBBW_EN);
+        }
+
+        return 0;
+}
+
+static int rtw_init_trx_cfg(struct rtw_dev *rtwdev)
+{
+        int ret;
+
+        ret = txdma_queue_mapping(rtwdev);
+        if (ret)
+                return ret;
+
+//        ret = priority_queue_cfg(rtwdev);
+//        if (ret)
+//                return ret;
+//
+//        ret = init_h2c(rtwdev);
+//        if (ret)
+//                return ret;
+
+        return 0;
+}
+
+int rtw_mac_init(struct rtw_dev *rtwdev)
+{
+//        const struct rtw_chip_info *chip = rtwdev->chip;
+        int ret;
+
+        ret = rtw_init_trx_cfg(rtwdev);
+        if (ret)
+                return ret;
+
+//        ret = chip->ops->mac_init(rtwdev);
+//        if (ret)
+//                return ret;
+//
+//        ret = rtw_drv_info_cfg(rtwdev);
+//        if (ret)
+//                return ret;
+//
+//        rtw_hci_interface_cfg(rtwdev);
+
+        return 0;
+}
+
+
 int rtw_power_on(struct rtw_dev *rtwdev)
 {
 //	const struct rtw_chip_info *chip = rtwdev->chip;
@@ -7640,12 +7735,12 @@ int rtw_power_on(struct rtw_dev *rtwdev)
 		goto err_off;
 	}
 //
-//        /* config mac after firmware downloaded */
-//        ret = rtw_mac_init(rtwdev);
-//        if (ret) {
-//                rtw_err(rtwdev, "failed to configure mac\n");
-//                goto err_off;
-//        }
+	/* config mac after firmware downloaded */
+	ret = rtw_mac_init(rtwdev);
+	if (ret) {
+		printf("%s: failed to configure mac\n", __func__);
+		goto err_off;
+	}
 //
 //        chip->ops->phy_set_param(rtwdev);
 //
