@@ -7692,10 +7692,6 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 
 	switch (nstate) {
 	case IEEE80211_S_INIT:
-		// rtw_core_start
-//		ret = rtwdev->chip->ops->power_on(rtwdev);
-//		if (ret)
-//			return ret;
 		break;
 	default:
 		break;
@@ -7717,7 +7713,9 @@ int
 urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 {
 	struct urtwm_softc *sc = ifp->if_softc;
-	int s, error = 0;
+	struct rtw88_softc *sc_sc = &sc->sc_sc;
+	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
+	int ret, s, error = 0;
 
 	if (usbd_is_dying(sc->sc_udev))
 		return ENXIO;
@@ -7729,15 +7727,19 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 	case SIOCSIFADDR:
 		ifp->if_flags |= IFF_UP;
 		/* FALLTHROUGH */
-//	case SIOCSIFFLAGS:
-//		if (ifp->if_flags & IFF_UP) {
-//			if (!(ifp->if_flags & IFF_RUNNING))
-//				rtwn_init(ifp);
-//		} else {
+	case SIOCSIFFLAGS:
+		if (ifp->if_flags & IFF_UP) {
+			if (!(ifp->if_flags & IFF_RUNNING)) {
+				printf("%s: starting device\n", __func__);
+				ret = rtwdev->chip->ops->power_on(rtwdev);
+				if (ret)
+					return ret;
+			}
+		} else {
 //			if (ifp->if_flags & IFF_RUNNING)
 //				rtwn_stop(ifp);
-//		}
-//		break;
+		}
+		break;
 //	case SIOCS80211CHANNEL:
 //		error = ieee80211_ioctl(ifp, cmd, data);
 //		if (error == ENETRESET &&
