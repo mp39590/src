@@ -7609,35 +7609,36 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 int rtw_power_on(struct rtw_dev *rtwdev)
 {
-//        const struct rtw_chip_info *chip = rtwdev->chip;
-//        struct rtw_fw_state *fw = &rtwdev->fw;
+//	const struct rtw_chip_info *chip = rtwdev->chip;
+        struct rtw_fw_state *fw = &rtwdev->fw;
 //        bool wifi_only;
-//        int ret;
+	int ret;
 //
-//        ret = rtw_hci_setup(rtwdev);
-//        if (ret) {
-//                rtw_err(rtwdev, "failed to setup hci\n");
-//                goto err;
-//        }
+	ret = rtw88_hci_setup(rtwdev);
+	if (ret) {
+		printf("%s: failed to setup hci\n", __func__);
+		goto err;
+	}
 //
-//        /* power on MAC before firmware downloaded */
-//        ret = rtw_mac_power_on(rtwdev);
-//        if (ret) {
-//                rtw_err(rtwdev, "failed to power on mac\n");
-//                goto err;
-//        }
+	/* power on MAC before firmware downloaded */
+	ret = rtw88_mac_power_on(rtwdev);
+	if (ret) {
+		printf("%s: failed to power on mac\n", __func__);
+		goto err;
+	}
 //
+//        // XXX Linux crap
 //        ret = rtw_wait_firmware_completion(rtwdev);
 //        if (ret) {
 //                rtw_err(rtwdev, "failed to wait firmware completion\n");
 //                goto err_off;
 //        }
 //
-//        ret = rtw_download_firmware(rtwdev, fw);
-//        if (ret) {
-//                rtw_err(rtwdev, "failed to download firmware\n");
-//                goto err_off;
-//        }
+	ret = rtw_download_firmware(rtwdev, fw);
+	if (ret) {
+		printf("%s: failed to download firmware\n", __func__);
+		goto err_off;
+	}
 //
 //        /* config mac after firmware downloaded */
 //        ret = rtw_mac_init(rtwdev);
@@ -7664,12 +7665,11 @@ int rtw_power_on(struct rtw_dev *rtwdev)
 //
 //        return 0;
 //
-//err_off:
-//        rtw_mac_power_off(rtwdev);
+err_off:
+	rtw_mac_power_off(rtwdev);
 //
-//err:
-//        return ret;
-	return 0;
+err:
+	return ret;
 }
 
 
