@@ -4161,7 +4161,7 @@ struct rtw88_hci_ops {
 	void (*stop)(struct rtw_dev *rtwdev);
 //	void (*deep_ps)(struct rtw_dev *rtwdev, bool enter);
 //	void (*link_ps)(struct rtw_dev *rtwdev, bool enter);
-//	void (*interface_cfg)(struct rtw_dev *rtwdev);
+	void (*interface_cfg)(struct rtw_dev *rtwdev);
 //
 	int (*write_data_rsvd_page)(struct rtw_dev *rtwdev, u8 *buf, u32 size);
 //	int (*write_data_h2c)(struct rtw_dev *rtwdev, u8 *buf, u32 size);
@@ -5004,7 +5004,7 @@ _leX_get_bits(32)
 //_uX_encode_bits(64)
 _uX_encode_bits(32)
 //_uX_encode_bits(16)
-//_uX_encode_bits(8)
+_uX_encode_bits(8)
 
 
 #define _uXp_replace_bits(_n)                                           \
@@ -5018,7 +5018,7 @@ _uX_encode_bits(32)
 //_uXp_replace_bits(64)
 _uXp_replace_bits(32)
 //_uXp_replace_bits(16)
-//_uXp_replace_bits(8)
+_uXp_replace_bits(8)
 
 
 #define _uX_get_bits(_n)                                                \
@@ -5270,6 +5270,44 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	return ret;
 }
 
+
+// XXX: changed
+#define BIT_DMA_MODE            BIT(1)
+#define BIT_DMA_BURST_CNT       GENMASK(3, 2)
+#define BIT_DMA_BURST_SIZE      GENMASK(5, 4)
+#define BIT_DMA_BURST_SIZE_64   2
+#define BIT_DMA_BURST_SIZE_512  1
+#define BIT_DMA_BURST_SIZE_1024 0
+
+static inline void rtw_write16_set(struct rtw_dev *rtwdev, u32 addr, u16 bit);
+static void rtw_usb_init_burst_pkt_len(struct rtw_dev *rtwdev)
+{
+//        struct rtw_usb *rtwusb = rtw_get_usb_priv(rtwdev);
+//        enum usb_device_speed speed = rtwusb->udev->speed;
+        u8 rxdma, burst_size;
+
+        rxdma = BIT_DMA_BURST_CNT | BIT_DMA_MODE;
+
+//        if (speed == USB_SPEED_SUPER)
+//                burst_size = BIT_DMA_BURST_SIZE_1024;
+//        else if (speed == USB_SPEED_HIGH)
+//                burst_size = BIT_DMA_BURST_SIZE_512;
+//        else
+//                burst_size = BIT_DMA_BURST_SIZE_64;
+	// XXX: hardcode this to usb2 for now
+	burst_size = BIT_DMA_BURST_SIZE_512;
+
+        u8p_replace_bits(&rxdma, burst_size, BIT_DMA_BURST_SIZE);
+
+        rtw_write8(rtwdev, REG_RXDMA_MODE, rxdma);
+        rtw_write16_set(rtwdev, REG_TXDMA_OFFSET_CHK, BIT_DROP_DATA_EN);
+}
+
+static void rtw_usb_interface_cfg(struct rtw_dev *rtwdev)
+{
+        rtw_usb_init_burst_pkt_len(rtwdev);
+}
+
 static int rtw_usb_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf,
 					u32 size)
 {
@@ -5298,6 +5336,7 @@ struct rtw88_hci_ops rtw88_usb_ops = {
 	.read16 = urtwm_read_16,
 	.read32 = urtwm_read_32,
 	.write_data_rsvd_page = rtw_usb_write_data_rsvd_page,
+	.interface_cfg = rtw_usb_interface_cfg,
 };
 
 int
@@ -7750,6 +7789,12 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 // {{{ power_on
 
+static inline void rtw_hci_interface_cfg(struct rtw_dev *rtwdev)
+{
+        rtwdev->hci.ops->interface_cfg(rtwdev);
+}
+
+
 static int rtw_drv_info_cfg(struct rtw_dev *rtwdev)
 {
         u8 value8;
@@ -8094,8 +8139,8 @@ int rtw_mac_init(struct rtw_dev *rtwdev)
 	ret = rtw_drv_info_cfg(rtwdev);
 	if (ret)
 		return ret;
-//
-//        rtw_hci_interface_cfg(rtwdev);
+
+	rtw_hci_interface_cfg(rtwdev);
 
         return 0;
 }
