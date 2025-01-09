@@ -142,6 +142,8 @@ struct rtw88_hal;
 
 #define clamp_t(type, _x, min, max)     min_t(type, max_t(type, _x, min), max)
 
+#define TX_PAGE_SIZE_SHIFT              7
+#define TX_PAGE_SIZE                    (1 << TX_PAGE_SIZE_SHIFT)
 
 // {{{ phy crap
 
@@ -2571,6 +2573,14 @@ void rtw_parse_tbl_bb_pg(struct rtw_dev *rtwdev, const struct rtw_table *tbl)
 
 // {{{ data structures
 
+struct rtw_page_table {
+        u16 hq_num;
+        u16 nq_num;
+        u16 lq_num;
+        u16 exq_num;
+        u16 gapq_num;
+};
+
 
 /* now, support up to 80M bw */
 #define RTW_MAX_CHANNEL_WIDTH RTW_CHANNEL_WIDTH_80
@@ -3153,15 +3163,16 @@ struct rtw88_chip_info {
 	uint32_t phy_efuse_size;
 	uint32_t log_efuse_size;
 	uint32_t ptct_efuse_size;
-//	uint32_t txff_size;
-//	uint32_t rxff_size;
+	uint32_t txff_size;
+	uint32_t rxff_size;
 //	uint32_t fw_rxff_size;
-//	uint16_t rsvd_drv_pg_num;
+	uint16_t rsvd_drv_pg_num;
 //	uint8_t band;
-//	uint8_t page_size;
-//	uint8_t csi_buf_pg_num;
+	uint8_t page_size;
+	uint8_t csi_buf_pg_num;
 //	uint8_t dig_max;
 //	uint8_t dig_min;
+	u8 usb_tx_agg_desc_num;
 	bool hw_feature_report;
 //	uint8_t txgi_factor;
 	bool is_pwr_by_rate_dec;
@@ -3186,7 +3197,7 @@ struct rtw88_chip_info {
 	const struct rtw88_pwr_seq_cmd **pwr_off_seq;
 	const struct rtw_rqpn *rqpn_table;
 //	const struct rtw_prioq_addrs *prioq_addrs;
-//	const struct rtw_page_table *page_table;
+	const struct rtw_page_table *page_table;
 //	const struct rtw_intf_phy_para_table *intf_table;
 //
 //	const struct rtw_hw_reg *dig;
@@ -3668,6 +3679,14 @@ const struct rtw88_pwr_seq_cmd *card_disable_flow_8822b[] = {
 	NULL
 };
 
+static const struct rtw_page_table page_table_8822b[] = {
+        {64, 64, 64, 64, 1},
+        {64, 64, 64, 64, 1},
+        {64, 64, 0, 0, 1},
+        {64, 64, 64, 0, 1},
+        {64, 64, 64, 64, 1},
+};
+
 static const struct rtw_rqpn rqpn_table_8822b[] = {
         {RTW_DMA_MAPPING_NORMAL, RTW_DMA_MAPPING_NORMAL,
          RTW_DMA_MAPPING_LOW, RTW_DMA_MAPPING_LOW,
@@ -3909,17 +3928,18 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 	.phy_efuse_size = 1024,
 	.log_efuse_size = 768,
 	.ptct_efuse_size = 96,
-//	.txff_size = 262144,
-//	.rxff_size = 24576,
+	.txff_size = 262144,
+	.rxff_size = 24576,
 //	.fw_rxff_size = 12288,
-//	.rsvd_drv_pg_num = 8,
+	.rsvd_drv_pg_num = 8,
 //	.txgi_factor = 1,
 	.is_pwr_by_rate_dec = true,
 	.max_power_index = 0x3f,
-//	.csi_buf_pg_num = 0,
+	.csi_buf_pg_num = 0,
 //	.band = RTW_BAND_2G | RTW_BAND_5G,
-//	.page_size = TX_PAGE_SIZE,
+	.page_size = TX_PAGE_SIZE,
 //	.dig_min = 0x1c,
+	.usb_tx_agg_desc_num = 3,
 	.hw_feature_report = true,
 //	.ht_supported = true,
 //	.vht_supported = true,
@@ -3927,7 +3947,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 	.sys_func_en = 0xDC,
 	.pwr_on_seq = card_enable_flow_8822b,
 	.pwr_off_seq = card_disable_flow_8822b,
-//	.page_table = page_table_8822b,
+	.page_table = page_table_8822b,
 	.rqpn_table = rqpn_table_8822b,
 //	.prioq_addrs = &prioq_addrs_8822b,
 //	.intf_table = &phy_para_table_8822b,
@@ -4799,6 +4819,20 @@ urtwm_read_32(struct rtw_dev *rtwdev, uint16_t addr)
 	if (urtwm_read_region_1(sc, addr, (uint8_t *)&val, 4) != 0)
 		return (0xffffffff);
 	return (letoh32(val));
+}
+
+static inline void
+rtw_write8_mask(struct rtw_dev *rtwdev, u32 addr, u32 mask, u8 data)
+{
+        u32 shift;
+        u8 orig, set;
+
+        mask &= 0xff;
+        shift = __ffs(mask);
+
+        orig = rtw_read8(rtwdev, addr);
+        set = (orig & ~mask) | ((data << shift) & mask);
+        rtw_write8(rtwdev, addr, set);
 }
 
 // ---------- write usb packet start ----------
@@ -7607,6 +7641,141 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 // {{{ power_on
 
+static int __priority_queue_cfg(struct rtw_dev *rtwdev,
+                                const struct rtw_page_table *pg_tbl,
+                                u16 pubq_num)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        struct rtw_fifo_conf *fifo = &rtwdev->fifo;
+
+        rtw_write16(rtwdev, REG_FIFOPAGE_INFO_1, pg_tbl->hq_num);
+        rtw_write16(rtwdev, REG_FIFOPAGE_INFO_2, pg_tbl->lq_num);
+        rtw_write16(rtwdev, REG_FIFOPAGE_INFO_3, pg_tbl->nq_num);
+        rtw_write16(rtwdev, REG_FIFOPAGE_INFO_4, pg_tbl->exq_num);
+        rtw_write16(rtwdev, REG_FIFOPAGE_INFO_5, pubq_num);
+        rtw_write32_set(rtwdev, REG_RQPN_CTRL_2, BIT_LD_RQPN);
+
+        rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2, fifo->rsvd_boundary);
+        rtw_write8_set(rtwdev, REG_FWHW_TXQ_CTRL + 2, BIT_EN_WR_FREE_TAIL >> 16);
+
+        rtw_write16(rtwdev, REG_BCNQ_BDNY_V1, fifo->rsvd_boundary);
+        rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2 + 2, fifo->rsvd_boundary);
+        rtw_write16(rtwdev, REG_BCNQ1_BDNY_V1, fifo->rsvd_boundary);
+        rtw_write32(rtwdev, REG_RXFF_BNDY, chip->rxff_size - C2H_PKT_BUF - 1);
+
+        if (rtwdev->hci.type == RTW88_HCI_TYPE_USB) {
+                rtw_write8_mask(rtwdev, REG_AUTO_LLT_V1, BIT_MASK_BLK_DESC_NUM,
+                                chip->usb_tx_agg_desc_num);
+
+                rtw_write8(rtwdev, REG_AUTO_LLT_V1 + 3, chip->usb_tx_agg_desc_num);
+                rtw_write8_set(rtwdev, REG_TXDMA_OFFSET_CHK + 1, BIT(1));
+        }
+
+        rtw_write8_set(rtwdev, REG_AUTO_LLT_V1, BIT_AUTO_INIT_LLT_V1);
+
+        if (!check_hw_ready(rtwdev, REG_AUTO_LLT_V1, BIT_AUTO_INIT_LLT_V1, 0))
+                return -EBUSY;
+
+        rtw_write8(rtwdev, REG_CR + 3, 0);
+
+        return 0;
+}
+
+int rtw_set_trx_fifo_info(struct rtw_dev *rtwdev)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        struct rtw_fifo_conf *fifo = &rtwdev->fifo;
+        u16 cur_pg_addr;
+        u8 csi_buf_pg_num = chip->csi_buf_pg_num;
+
+        /* config rsvd page num */
+        fifo->rsvd_drv_pg_num = chip->rsvd_drv_pg_num;
+        fifo->txff_pg_num = chip->txff_size / chip->page_size;
+        // XXX:misha only 11ac
+//        if (rtw_chip_wcpu_11n(rtwdev))
+//                fifo->rsvd_pg_num = fifo->rsvd_drv_pg_num;
+//        else
+                fifo->rsvd_pg_num = fifo->rsvd_drv_pg_num +
+                                   RSVD_PG_H2C_EXTRAINFO_NUM +
+                                   RSVD_PG_H2C_STATICINFO_NUM +
+                                   RSVD_PG_H2CQ_NUM +
+                                   RSVD_PG_CPU_INSTRUCTION_NUM +
+                                   RSVD_PG_FW_TXBUF_NUM +
+                                   csi_buf_pg_num;
+
+        if (fifo->rsvd_pg_num > fifo->txff_pg_num)
+                return -ENOMEM;
+
+        fifo->acq_pg_num = fifo->txff_pg_num - fifo->rsvd_pg_num;
+        fifo->rsvd_boundary = fifo->txff_pg_num - fifo->rsvd_pg_num;
+
+        cur_pg_addr = fifo->txff_pg_num;
+        if (rtw88_chip_wcpu_11ac(rtwdev)) {
+                cur_pg_addr -= csi_buf_pg_num;
+                fifo->rsvd_csibuf_addr = cur_pg_addr;
+                cur_pg_addr -= RSVD_PG_FW_TXBUF_NUM;
+                fifo->rsvd_fw_txbuf_addr = cur_pg_addr;
+                cur_pg_addr -= RSVD_PG_CPU_INSTRUCTION_NUM;
+                fifo->rsvd_cpu_instr_addr = cur_pg_addr;
+                cur_pg_addr -= RSVD_PG_H2CQ_NUM;
+                fifo->rsvd_h2cq_addr = cur_pg_addr;
+                cur_pg_addr -= RSVD_PG_H2C_STATICINFO_NUM;
+                fifo->rsvd_h2c_sta_info_addr = cur_pg_addr;
+                cur_pg_addr -= RSVD_PG_H2C_EXTRAINFO_NUM;
+                fifo->rsvd_h2c_info_addr = cur_pg_addr;
+        }
+        cur_pg_addr -= fifo->rsvd_drv_pg_num;
+        fifo->rsvd_drv_addr = cur_pg_addr;
+
+        if (fifo->rsvd_boundary != fifo->rsvd_drv_addr) {
+                printf("%s: wrong rsvd driver address\n", __func__);
+                return -EINVAL;
+        }
+
+        return 0;
+}
+
+static int priority_queue_cfg(struct rtw_dev *rtwdev)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        struct rtw_fifo_conf *fifo = &rtwdev->fifo;
+        const struct rtw_page_table *pg_tbl = NULL;
+        u16 pubq_num;
+        int ret;
+
+        ret = rtw_set_trx_fifo_info(rtwdev);
+        if (ret)
+                return ret;
+
+        switch (rtw_hci_type(rtwdev)) {
+//        case RTW_HCI_TYPE_PCIE:
+//                pg_tbl = &chip->page_table[1];
+//                break;
+        case RTW88_HCI_TYPE_USB:
+                if (rtwdev->hci.bulkout_num == 2)
+                        pg_tbl = &chip->page_table[2];
+                else if (rtwdev->hci.bulkout_num == 3)
+                        pg_tbl = &chip->page_table[3];
+                else if (rtwdev->hci.bulkout_num == 4)
+                        pg_tbl = &chip->page_table[4];
+                else
+                        return -EINVAL;
+                break;
+//        case RTW_HCI_TYPE_SDIO:
+//                pg_tbl = &chip->page_table[0];
+//                break;
+        default:
+                return -EINVAL;
+        }
+
+        pubq_num = fifo->acq_pg_num - pg_tbl->hq_num - pg_tbl->lq_num -
+                   pg_tbl->nq_num - pg_tbl->exq_num - pg_tbl->gapq_num;
+	// XXX:misha only 11ac
+//        if (rtw_chip_wcpu_11n(rtwdev))
+//                return __priority_queue_cfg_legacy(rtwdev, pg_tbl, pubq_num);
+//        else
+                return __priority_queue_cfg(rtwdev, pg_tbl, pubq_num);
+}
 
 static int txdma_queue_mapping(struct rtw_dev *rtwdev)
 {
@@ -7668,9 +7837,9 @@ static int rtw_init_trx_cfg(struct rtw_dev *rtwdev)
         if (ret)
                 return ret;
 
-//        ret = priority_queue_cfg(rtwdev);
-//        if (ret)
-//                return ret;
+	ret = priority_queue_cfg(rtwdev);
+	if (ret)
+		return ret;
 //
 //        ret = init_h2c(rtwdev);
 //        if (ret)
@@ -7688,9 +7857,9 @@ int rtw_mac_init(struct rtw_dev *rtwdev)
         if (ret)
                 return ret;
 
-//        ret = chip->ops->mac_init(rtwdev);
-//        if (ret)
-//                return ret;
+//	ret = chip->ops->mac_init(rtwdev);
+//	if (ret)
+//		return ret;
 //
 //        ret = rtw_drv_info_cfg(rtwdev);
 //        if (ret)
