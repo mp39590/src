@@ -145,6 +145,51 @@ struct rtw88_hal;
 #define TX_PAGE_SIZE_SHIFT              7
 #define TX_PAGE_SIZE                    (1 << TX_PAGE_SIZE_SHIFT)
 
+// bf.h
+#define REG_TXBF_CTRL           0x042C
+#define REG_RRSR                0x0440
+#define REG_NDPA_OPT_CTRL       0x045F
+
+#define REG_ASSOCIATED_BFMER0_INFO      0x06E4
+#define REG_ASSOCIATED_BFMER1_INFO      0x06EC
+#define REG_TX_CSI_RPT_PARAM_BW20       0x06F4
+#define REG_SND_PTCL_CTRL               0x0718
+#define BIT_DIS_CHK_VHTSIGB_CRC         BIT(6)
+#define BIT_DIS_CHK_VHTSIGA_CRC         BIT(5)
+#define BIT_MASK_BEAMFORM               (GENMASK(4, 0) | BIT(7))
+#define REG_MU_TX_CTL                   0x14C0
+#define REG_MU_STA_GID_VLD              0x14C4
+#define REG_MU_STA_USER_POS_INFO        0x14C8
+#define REG_CSI_RRSR                    0x1678
+#define REG_WMAC_MU_BF_OPTION           0x167C
+#define REG_WMAC_MU_BF_CTL              0x1680
+
+#define BIT_WMAC_USE_NDPARATE                   BIT(30)
+#define BIT_WMAC_TXMU_ACKPOLICY_EN              BIT(6)
+#define BIT_USE_NDPA_PARAMETER                  BIT(30)
+#define BIT_MU_P1_WAIT_STATE_EN                 BIT(16)
+#define BIT_EN_MU_MIMO                          BIT(7)
+
+#define R_MU_RL                         0xf
+#define BIT_SHIFT_R_MU_RL               12
+#define BIT_SHIFT_WMAC_TXMU_ACKPOLICY   4
+#define BIT_SHIFT_CSI_RATE              24
+
+#define BIT_MASK_R_MU_RL (R_MU_RL << BIT_SHIFT_R_MU_RL)
+#define BIT_MASK_R_MU_TABLE_VALID       0x3f
+#define BIT_MASK_CSI_RATE_VAL           0x3F
+#define BIT_MASK_CSI_RATE (BIT_MASK_CSI_RATE_VAL << BIT_SHIFT_CSI_RATE)
+
+#define BIT_RXFLTMAP0_ACTIONNOACK       BIT(14)
+#define BIT_RXFLTMAP1_BF                (BIT(4) | BIT(5))
+#define BIT_RXFLTMAP1_BF_REPORT_POLL    BIT(4)
+#define BIT_RXFLTMAP4_BF_REPORT_POLL    BIT(4)
+
+#define RTW_NDP_RX_STANDBY_TIME 0x70
+#define RTW_SND_CTRL_REMOVE     0x98
+#define RTW_SND_CTRL_SOUNDING   0x9B
+
+
 // {{{ phy crap
 
 enum rtw_phy_band_type {
@@ -3091,7 +3136,7 @@ struct rtw88_pwr_seq_cmd {
 struct rtw_chip_ops {
         int (*power_on)(struct rtw_dev *rtwdev);
 //        void (*power_off)(struct rtw_dev *rtwdev);
-//        int (*mac_init)(struct rtw_dev *rtwdev);
+	int (*mac_init)(struct rtw_dev *rtwdev);
 //        int (*dump_fw_crash)(struct rtw_dev *rtwdev);
 //        void (*shutdown)(struct rtw_dev *rtwdev);
 	int (*read_efuse)(struct rtw_dev *rtwdev, u8 *map);
@@ -3709,6 +3754,7 @@ static const struct rtw_rqpn rqpn_table_8822b[] = {
 int rtw_power_on(struct rtw_dev *rtwdev);
 static void rtw8822b_cfg_ldo25(struct rtw_dev *rtwdev, bool enable);
 static int rtw8822b_read_efuse(struct rtw_dev *rtwdev, u8 *log_map);
+static int rtw8822b_mac_init(struct rtw_dev *rtwdev);
 
 struct rtw_rfe_def {
         const struct rtw_table *phy_pg_tbl;
@@ -3891,7 +3937,7 @@ static const struct rtw_chip_ops rtw8822b_ops = {
         .read_efuse             = rtw8822b_read_efuse,
 //        .query_phy_status       = query_phy_status,
 //        .set_channel            = rtw8822b_set_channel,
-//        .mac_init               = rtw8822b_mac_init,
+	.mac_init               = rtw8822b_mac_init,
 //        .read_rf                = rtw_phy_read_rf,
 //        .write_rf               = rtw_phy_write_rf_reg_sipi,
 //        .set_tx_power_index     = rtw8822b_set_tx_power_index,
@@ -5971,6 +6017,59 @@ int rtw_download_firmware(struct rtw_dev *rtwdev, struct rtw_fw_state *fw)
 
 // {{{ rtw88_mac_power_on
 
+#define WLAN_SLOT_TIME          0x09
+#define WLAN_PIFS_TIME          0x19
+#define WLAN_SIFS_CCK_CONT_TX   0xA
+#define WLAN_SIFS_OFDM_CONT_TX  0xE
+#define WLAN_SIFS_CCK_TRX       0x10
+#define WLAN_SIFS_OFDM_TRX      0x10
+#define WLAN_VO_TXOP_LIMIT      0x186 /* unit : 32us */
+#define WLAN_VI_TXOP_LIMIT      0x3BC /* unit : 32us */
+#define WLAN_RDG_NAV            0x05
+#define WLAN_TXOP_NAV           0x1B
+#define WLAN_CCK_RX_TSF         0x30
+#define WLAN_OFDM_RX_TSF        0x30
+#define WLAN_TBTT_PROHIBIT      0x04 /* unit : 32us */
+#define WLAN_TBTT_HOLD_TIME     0x064 /* unit : 32us */
+#define WLAN_DRV_EARLY_INT      0x04
+#define WLAN_BCN_DMA_TIME       0x02
+
+#define WLAN_RX_FILTER0         0x0FFFFFFF
+#define WLAN_RX_FILTER2         0xFFFF
+#define WLAN_RCR_CFG            0xE400220E
+#define WLAN_RXPKT_MAX_SZ       12288
+#define WLAN_RXPKT_MAX_SZ_512   (WLAN_RXPKT_MAX_SZ >> 9)
+
+#define WLAN_AMPDU_MAX_TIME             0x70
+#define WLAN_RTS_LEN_TH                 0xFF
+#define WLAN_RTS_TX_TIME_TH             0x08
+#define WLAN_MAX_AGG_PKT_LIMIT          0x20
+#define WLAN_RTS_MAX_AGG_PKT_LIMIT      0x20
+#define FAST_EDCA_VO_TH         0x06
+#define FAST_EDCA_VI_TH         0x06
+#define FAST_EDCA_BE_TH         0x06
+#define FAST_EDCA_BK_TH         0x06
+#define WLAN_BAR_RETRY_LIMIT            0x01
+#define WLAN_RA_TRY_RATE_AGG_LIMIT      0x08
+
+#define WLAN_TX_FUNC_CFG1               0x30
+#define WLAN_TX_FUNC_CFG2               0x30
+#define WLAN_MAC_OPT_NORM_FUNC1         0x98
+#define WLAN_MAC_OPT_LB_FUNC1           0x80
+#define WLAN_MAC_OPT_FUNC2              0xb0810041
+
+#define WLAN_SIFS_CFG   (WLAN_SIFS_CCK_CONT_TX | \
+                        (WLAN_SIFS_OFDM_CONT_TX << BIT_SHIFT_SIFS_OFDM_CTX) | \
+                        (WLAN_SIFS_CCK_TRX << BIT_SHIFT_SIFS_CCK_TRX) | \
+                        (WLAN_SIFS_OFDM_TRX << BIT_SHIFT_SIFS_OFDM_TRX))
+
+#define WLAN_TBTT_TIME  (WLAN_TBTT_PROHIBIT |\
+                        (WLAN_TBTT_HOLD_TIME << BIT_SHIFT_TBTT_HOLD_TIME_AP))
+
+#define WLAN_NAV_CFG            (WLAN_RDG_NAV | (WLAN_TXOP_NAV << 16))
+#define WLAN_RX_TSF_CFG         (WLAN_CCK_RX_TSF | (WLAN_OFDM_RX_TSF) << 8)
+
+
 int
 __rtw88_mac_init_system_cfg(struct rtw_dev *rtwdev)
 {
@@ -7641,6 +7740,56 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 // {{{ power_on
 
+static int rtw8822b_mac_init(struct rtw_dev *rtwdev)
+{
+        u32 value32;
+
+        /* protocol configuration */
+        rtw_write8_clr(rtwdev, REG_SW_AMPDU_BURST_MODE_CTRL, BIT_PRE_TX_CMD);
+        rtw_write8(rtwdev, REG_AMPDU_MAX_TIME_V1, WLAN_AMPDU_MAX_TIME);
+        rtw_write8_set(rtwdev, REG_TX_HANG_CTRL, BIT_EN_EOF_V1);
+        value32 = WLAN_RTS_LEN_TH | (WLAN_RTS_TX_TIME_TH << 8) |
+                  (WLAN_MAX_AGG_PKT_LIMIT << 16) |
+                  (WLAN_RTS_MAX_AGG_PKT_LIMIT << 24);
+        rtw_write32(rtwdev, REG_PROT_MODE_CTRL, value32);
+        rtw_write16(rtwdev, REG_BAR_MODE_CTRL + 2,
+                    WLAN_BAR_RETRY_LIMIT | WLAN_RA_TRY_RATE_AGG_LIMIT << 8);
+        rtw_write8(rtwdev, REG_FAST_EDCA_VOVI_SETTING, FAST_EDCA_VO_TH);
+        rtw_write8(rtwdev, REG_FAST_EDCA_VOVI_SETTING + 2, FAST_EDCA_VI_TH);
+        rtw_write8(rtwdev, REG_FAST_EDCA_BEBK_SETTING, FAST_EDCA_BE_TH);
+        rtw_write8(rtwdev, REG_FAST_EDCA_BEBK_SETTING + 2, FAST_EDCA_BK_TH);
+        /* EDCA configuration */
+        rtw_write8_clr(rtwdev, REG_TIMER0_SRC_SEL, BIT_TSFT_SEL_TIMER0);
+        rtw_write16(rtwdev, REG_TXPAUSE, 0x0000);
+        rtw_write8(rtwdev, REG_SLOT, WLAN_SLOT_TIME);
+        rtw_write8(rtwdev, REG_PIFS, WLAN_PIFS_TIME);
+        rtw_write32(rtwdev, REG_SIFS, WLAN_SIFS_CFG);
+        rtw_write16(rtwdev, REG_EDCA_VO_PARAM + 2, WLAN_VO_TXOP_LIMIT);
+        rtw_write16(rtwdev, REG_EDCA_VI_PARAM + 2, WLAN_VI_TXOP_LIMIT);
+        rtw_write32(rtwdev, REG_RD_NAV_NXT, WLAN_NAV_CFG);
+        rtw_write16(rtwdev, REG_RXTSF_OFFSET_CCK, WLAN_RX_TSF_CFG);
+        /* Set beacon cotnrol - enable TSF and other related functions */
+        rtw_write8_set(rtwdev, REG_BCN_CTRL, BIT_EN_BCN_FUNCTION);
+        /* Set send beacon related registers */
+        rtw_write32(rtwdev, REG_TBTT_PROHIBIT, WLAN_TBTT_TIME);
+        rtw_write8(rtwdev, REG_DRVERLYINT, WLAN_DRV_EARLY_INT);
+        rtw_write8(rtwdev, REG_BCNDMATIM, WLAN_BCN_DMA_TIME);
+        rtw_write8_clr(rtwdev, REG_TX_PTCL_CTRL + 1, BIT_SIFS_BK_EN >> 8);
+        /* WMAC configuration */
+        rtw_write32(rtwdev, REG_RXFLTMAP0, WLAN_RX_FILTER0);
+        rtw_write16(rtwdev, REG_RXFLTMAP2, WLAN_RX_FILTER2);
+        rtw_write32(rtwdev, REG_RCR, WLAN_RCR_CFG);
+        rtw_write8(rtwdev, REG_RX_PKT_LIMIT, WLAN_RXPKT_MAX_SZ_512);
+        rtw_write8(rtwdev, REG_TCR + 2, WLAN_TX_FUNC_CFG2);
+        rtw_write8(rtwdev, REG_TCR + 1, WLAN_TX_FUNC_CFG1);
+        rtw_write32(rtwdev, REG_WMAC_OPTION_FUNCTION + 8, WLAN_MAC_OPT_FUNC2);
+        rtw_write8(rtwdev, REG_WMAC_OPTION_FUNCTION + 4, WLAN_MAC_OPT_NORM_FUNC1);
+        rtw_write8_set(rtwdev, REG_SND_PTCL_CTRL,
+                       BIT_DIS_CHK_VHTSIGB_CRC);
+
+        return 0;
+}
+
 static int init_h2c(struct rtw_dev *rtwdev)
 {
         struct rtw_fifo_conf *fifo = &rtwdev->fifo;
@@ -7903,16 +8052,16 @@ static int rtw_init_trx_cfg(struct rtw_dev *rtwdev)
 
 int rtw_mac_init(struct rtw_dev *rtwdev)
 {
-//        const struct rtw_chip_info *chip = rtwdev->chip;
+	const struct rtw_chip_info *chip = rtwdev->chip;
         int ret;
 
         ret = rtw_init_trx_cfg(rtwdev);
         if (ret)
                 return ret;
 
-//	ret = chip->ops->mac_init(rtwdev);
-//	if (ret)
-//		return ret;
+	ret = chip->ops->mac_init(rtwdev);
+	if (ret)
+		return ret;
 //
 //        ret = rtw_drv_info_cfg(rtwdev);
 //        if (ret)
