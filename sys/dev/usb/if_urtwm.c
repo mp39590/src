@@ -4676,6 +4676,7 @@ struct urtwm_softc {
 #define rtw_write32 rtw88_write32
 
 #define rtw_chip_wcpu_11n rtw88_chip_wcpu_11n
+#define rtw_chip_wcpu_11ac rtw88_chip_wcpu_11ac
 
 #define rtw_efuse rtw88_efuse
 
@@ -4880,6 +4881,15 @@ rtw_write8_mask(struct rtw_dev *rtwdev, u32 addr, u32 mask, u8 data)
         set = (orig & ~mask) | ((data << shift) & mask);
         rtw_write8(rtwdev, addr, set);
 }
+
+static inline void rtw_write32_clr(struct rtw_dev *rtwdev, u32 addr, u32 bit)
+{
+        u32 val;
+
+        val = rtw_read32(rtwdev, addr);
+        rtw_write32(rtwdev, addr, val & ~bit);
+}
+
 
 // ---------- write usb packet start ----------
 
@@ -7740,6 +7750,24 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 // {{{ power_on
 
+static int rtw_drv_info_cfg(struct rtw_dev *rtwdev)
+{
+        u8 value8;
+
+        rtw_write8(rtwdev, REG_RX_DRVINFO_SZ, PHY_STATUS_SIZE);
+        if (rtw_chip_wcpu_11ac(rtwdev)) {
+                value8 = rtw_read8(rtwdev, REG_TRXFF_BNDY + 1);
+                value8 &= 0xF0;
+                /* For rxdesc len = 0 issue */
+                value8 |= 0xF;
+                rtw_write8(rtwdev, REG_TRXFF_BNDY + 1, value8);
+        }
+        rtw_write32_set(rtwdev, REG_RCR, BIT_APP_PHYSTS);
+        rtw_write32_clr(rtwdev, REG_WMAC_OPTION_FUNCTION + 4, BIT(8) | BIT(9));
+
+        return 0;
+}
+
 static int rtw8822b_mac_init(struct rtw_dev *rtwdev)
 {
         u32 value32;
@@ -8062,10 +8090,10 @@ int rtw_mac_init(struct rtw_dev *rtwdev)
 	ret = chip->ops->mac_init(rtwdev);
 	if (ret)
 		return ret;
-//
-//        ret = rtw_drv_info_cfg(rtwdev);
-//        if (ret)
-//                return ret;
+
+	ret = rtw_drv_info_cfg(rtwdev);
+	if (ret)
+		return ret;
 //
 //        rtw_hci_interface_cfg(rtwdev);
 
