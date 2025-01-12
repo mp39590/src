@@ -277,6 +277,60 @@ struct rtw88_hal;
 #define EDCCA_L2H_H2L_DIFF 7
 #define EDCCA_L2H_H2L_DIFF_NORMAL 8
 
+// XXX: fls and flsl are correct? not linux ones?
+#define ilog2(x) ((sizeof(x) <= 4) ? (fls(x) - 1) : (flsl(x) - 1))
+
+/* EWMA stands for Exponentially Weighted Moving Average. */
+/*
+ * Z_t = d X_t + (1 - d) * Z_(t-1); 0 < d <= 1, t >= 1; Roberts (1959).
+ * t  : observation number in time.
+ * d  : weight for current observation.
+ * Xt : observations over time.
+ * Zt : EWMA value after observation t.
+ *
+ * wmba_*_read seems to return up-to [u]long values; have to deal with 32/64bit.
+ * According to the ath5k.h change log this seems to be a fix-(_p)recision impl.
+ * assert 2/4 bits for frac.
+ * Also all (_d) values seem to be pow2 which simplifies maths (shift by
+ * d = ilog2(_d) instead of doing division (d = 1/_d)).  Keep it this way until
+ * we hit the CTASSERT.
+ */
+
+// XXX: removeed CTASSERT
+#define DECLARE_EWMA(_name, _p, _d)                                             \
+        struct ewma_ ## _name {                                                 \
+                unsigned long zt;                                               \
+        };                                                                      \
+                                                                                \
+        static __inline void                                                    \
+        ewma_ ## _name ## _init(struct ewma_ ## _name *ewma)                    \
+        {                                                                       \
+                /* No target (no historical data). */                           \
+                ewma->zt = 0;                                                   \
+        }                                                                       \
+
+//                                                                                \
+//        static __inline void                                                    \
+//        ewma_ ## _name ## _add(struct ewma_ ## _name *ewma, unsigned long x)    \
+//        {                                                                       \
+//                unsigned long ztm1 = ewma->zt;  /* Z_(t-1). */                  \
+//                int d = ilog2(_d);                                              \
+//                                                                                \
+//                if (ewma->zt == 0)                                              \
+//                        ewma->zt = x << (_p);                                   \
+//                else                                                            \
+//                        ewma->zt = ((x << (_p)) >> d) +                         \
+//                            (((ztm1 << d) - ztm1) >> d);                        \
+//        }                                                                       \
+//                                                                                \
+//        static __inline unsigned long                                           \
+//        ewma_ ## _name ## _read(struct ewma_ ## _name *ewma)                    \
+//        {                                                                       \
+//                return (ewma->zt >> (_p));                                      \
+//        }                                                                       
+
+DECLARE_EWMA(thermal, 10, 4);
+
 
 // {{{ phy crap
 
@@ -23133,7 +23187,7 @@ struct rtw_dpk_info {
         DECLARE_BITMAP(dpk_path_ok, DPK_RF_PATH_NUM);
 
         u8 thermal_dpk[DPK_RF_PATH_NUM];
-//	struct ewma_thermal avg_thermal[DPK_RF_PATH_NUM];
+	struct ewma_thermal avg_thermal[DPK_RF_PATH_NUM];
 
         u32 gnt_control;
         u32 gnt_value;
@@ -24922,7 +24976,7 @@ struct rtw_dm_info {
         u8 default_cck_index;
         bool pwr_trk_triggered;
         bool pwr_trk_init_trigger;
-//        struct ewma_thermal avg_thermal[RTW_RF_PATH_MAX];
+	struct ewma_thermal avg_thermal[RTW_RF_PATH_MAX];
         s8 txagc_remnant_cck;
         s8 txagc_remnant_ofdm[RTW_RF_PATH_MAX];
         u8 rx_cck_agc_report_type;
@@ -28741,6 +28795,49 @@ static const struct rtw8822b_rfe_info rtw8822b_rfe_info[] = {
 
 // {{{ power_on
 
+#define RTW_TXSCALE_SIZE 37
+static const u32 rtw8822b_txscale_tbl[RTW_TXSCALE_SIZE] = {
+        0x081, 0x088, 0x090, 0x099, 0x0a2, 0x0ac, 0x0b6, 0x0c0, 0x0cc, 0x0d8,
+        0x0e5, 0x0f2, 0x101, 0x110, 0x120, 0x131, 0x143, 0x156, 0x16a, 0x180,
+        0x197, 0x1af, 0x1c8, 0x1e3, 0x200, 0x21e, 0x23e, 0x261, 0x285, 0x2ab,
+        0x2d3, 0x2fe, 0x32b, 0x35c, 0x38e, 0x3c4, 0x3fe
+};
+
+static u8 rtw8822b_get_swing_index(struct rtw_dev *rtwdev)
+{
+        u8 i = 0;
+        u32 swing, table_value;
+
+        swing = rtw_read32_mask(rtwdev, 0xc1c, 0xffe00000);
+        for (i = 0; i < RTW_TXSCALE_SIZE; i++) {
+                table_value = rtw8822b_txscale_tbl[i];
+                if (swing == table_value)
+                        break;
+        }
+
+        return i;
+}
+
+static void rtw8822b_pwrtrack_init(struct rtw_dev *rtwdev)
+{
+        struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+        u8 swing_idx = rtw8822b_get_swing_index(rtwdev);
+        u8 path;
+
+        if (swing_idx >= RTW_TXSCALE_SIZE)
+                dm_info->default_ofdm_index = 24;
+        else
+                dm_info->default_ofdm_index = swing_idx;
+
+        for (path = RF_PATH_A; path < rtwdev->hal.rf_path_num; path++) {
+                ewma_thermal_init(&dm_info->avg_thermal[path]);
+                dm_info->delta_power_index[path] = 0;
+        }
+        dm_info->pwr_trk_triggered = false;
+        dm_info->pwr_trk_init_trigger = true;
+        dm_info->thermal_meter_k = rtwdev->efuse.thermal_meter_k;
+}
+
 static void rtw8822b_phy_rfe_init(struct rtw_dev *rtwdev)
 {
         /* chip top mux */
@@ -29296,7 +29393,7 @@ static void rtw8822b_phy_set_param(struct rtw_dev *rtwdev)
 	rtw_phy_init(rtwdev);
 //
 	rtw8822b_phy_rfe_init(rtwdev);
-//        rtw8822b_pwrtrack_init(rtwdev);
+	rtw8822b_pwrtrack_init(rtwdev);
 //
 //        rtw8822b_phy_bf_init(rtwdev);
 }
