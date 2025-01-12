@@ -24579,6 +24579,11 @@ static const struct rtw_hw_reg_offset rtw8822b_edcca_th[] = {
         [EDCCA_TH_H2L_IDX] = {{.addr = 0x8a4, .mask = MASKBYTE1}, .offset = 0},
 };
 
+static const struct rtw_hw_reg rtw8822b_dig[] = {
+        [0] = { .addr = 0xc50, .mask = 0x7f },
+        [1] = { .addr = 0xe50, .mask = 0x7f },
+};
+
 
 const struct rtw88_chip_info rtw8822b_hw_spec = {
 	.ops = &rtw8822b_ops,
@@ -24615,7 +24620,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 	.rqpn_table = rqpn_table_8822b,
 //	.prioq_addrs = &prioq_addrs_8822b,
 //	.intf_table = &phy_para_table_8822b,
-//	.dig = rtw8822b_dig,
+	.dig = rtw8822b_dig,
 //	.dig_cck = NULL,
 	.rf_base_addr = {0x2800, 0x2c00},
 	.rf_sipi_addr = {0xc90, 0xe90},
