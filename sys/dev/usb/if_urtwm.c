@@ -28741,6 +28741,23 @@ static const struct rtw8822b_rfe_info rtw8822b_rfe_info[] = {
 
 // {{{ power_on
 
+static void rtw8822b_phy_rfe_init(struct rtw_dev *rtwdev)
+{
+        /* chip top mux */
+        rtw_write32_mask(rtwdev, 0x64, BIT(29) | BIT(28), 0x3);
+        rtw_write32_mask(rtwdev, 0x4c, BIT(26) | BIT(25), 0x0);
+        rtw_write32_mask(rtwdev, 0x40, BIT(2), 0x1);
+
+        /* from s0 or s1 */
+        rtw_write32_mask(rtwdev, 0x1990, 0x3f, 0x30);
+        rtw_write32_mask(rtwdev, 0x1990, (BIT(11) | BIT(10)), 0x3);
+
+        /* input or output */
+        rtw_write32_mask(rtwdev, 0x974, 0x3f, 0x3f);
+        rtw_write32_mask(rtwdev, 0x974, (BIT(11) | BIT(10)), 0x3);
+}
+
+
 static void rtw_phy_tx_path_div_init(struct rtw_dev *rtwdev)
 {
         struct rtw_path_div *path_div = &rtwdev->dm_path_div;
@@ -29278,7 +29295,7 @@ static void rtw8822b_phy_set_param(struct rtw_dev *rtwdev)
 	    is_tx2_path);
 	rtw_phy_init(rtwdev);
 //
-//        rtw8822b_phy_rfe_init(rtwdev);
+	rtw8822b_phy_rfe_init(rtwdev);
 //        rtw8822b_pwrtrack_init(rtwdev);
 //
 //        rtw8822b_phy_bf_init(rtwdev);
