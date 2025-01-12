@@ -23209,6 +23209,21 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+enum rtw_vif_port_set {
+        PORT_SET_MAC_ADDR       = BIT(0),
+        PORT_SET_BSSID          = BIT(1),
+        PORT_SET_NET_TYPE       = BIT(2),
+        PORT_SET_AID            = BIT(3),
+        PORT_SET_BCN_CTRL       = BIT(4),
+};
+
+enum rtw_net_type {
+        RTW_NET_NO_LINK         = 0,
+        RTW_NET_AD_HOC          = 1,
+        RTW_NET_MGD_LINKED      = 2,
+        RTW_NET_AP_MODE         = 3,
+};
+
 struct rtw_h2c_cmd {
         __le32 msg;
         __le32 msg_ext;
@@ -23216,16 +23231,16 @@ struct rtw_h2c_cmd {
 
 
 struct rtw_vif {
-//        enum rtw_net_type net_type;
-//        u16 aid;
+	enum rtw_net_type net_type;
+	u16 aid;
 //        u8 mac_id;
         u8 mac_addr[ETH_ALEN];
-//        u8 bssid[ETH_ALEN];
+	u8 bssid[ETH_ALEN];
 //        u8 port;
-//        u8 bcn_ctrl;
+	u8 bcn_ctrl;
 //        struct list_head rsvd_page_list;
 //        struct ieee80211_tx_queue_params tx_params[IEEE80211_NUM_ACS];
-//        const struct rtw_vif_port *conf;
+	const struct rtw_vif_port *conf;
 //        struct cfg80211_scan_request *scan_req;
 //        struct ieee80211_scan_ies *scan_ies;
 //
@@ -30572,6 +30587,131 @@ static int rtw_ops_hw_scan(struct rtw_dev *rtwdev)
 
 // }}}
 
+// {{{ rtw_ops_add_interface
+
+void rtw_vif_port_config(struct rtw_dev *rtwdev,
+                         struct rtw_vif *rtwvif,
+                         u32 config)
+{
+        u32 addr, mask;
+
+        if (config & PORT_SET_MAC_ADDR) {
+                addr = rtwvif->conf->mac_addr.addr;
+                rtw_vif_write_addr(rtwdev, addr, rtwvif->mac_addr);
+        }
+        if (config & PORT_SET_BSSID) {
+                addr = rtwvif->conf->bssid.addr;
+                rtw_vif_write_addr(rtwdev, addr, rtwvif->bssid);
+        }
+        if (config & PORT_SET_NET_TYPE) {
+                addr = rtwvif->conf->net_type.addr;
+                mask = rtwvif->conf->net_type.mask;
+                rtw_write32_mask(rtwdev, addr, mask, rtwvif->net_type);
+        }
+        if (config & PORT_SET_AID) {
+                addr = rtwvif->conf->aid.addr;
+                mask = rtwvif->conf->aid.mask;
+                rtw_write32_mask(rtwdev, addr, mask, rtwvif->aid);
+        }
+        if (config & PORT_SET_BCN_CTRL) {
+                addr = rtwvif->conf->bcn_ctrl.addr;
+                mask = rtwvif->conf->bcn_ctrl.mask;
+                rtw_write8_mask(rtwdev, addr, mask, rtwvif->bcn_ctrl);
+        }
+}
+
+
+static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
+{
+//        struct rtw_dev *rtwdev = hw->priv;
+//        struct rtw_vif *rtwvif = (struct rtw_vif *)vif->drv_priv;
+	enum rtw_net_type net_type;
+	u32 config = 0;
+	u8 port;
+	u8 bcn_ctrl = 0;
+	struct urtwm_softc *sc = rtwdev->cookie;
+	struct ieee80211com *ic = &sc->sc_ic;
+	struct rtw_vif rtwvif;
+//
+//        if (rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_BCN_FILTER))
+//                vif->driver_flags |= IEEE80211_VIF_BEACON_FILTER |
+//                                     IEEE80211_VIF_SUPPORTS_CQM_RSSI;
+//        rtwvif->stats.tx_unicast = 0;
+//        rtwvif->stats.rx_unicast = 0;
+//        rtwvif->stats.tx_cnt = 0;
+//        rtwvif->stats.rx_cnt = 0;
+//        rtwvif->scan_req = NULL;
+//        memset(&rtwvif->bfee, 0, sizeof(struct rtw_bfee));
+//        rtw_txq_init(rtwdev, vif->txq);
+//        INIT_LIST_HEAD(&rtwvif->rsvd_page_list);
+//
+//        mutex_lock(&rtwdev->mutex);
+//
+//        rtwvif->mac_id = rtw_acquire_macid(rtwdev);
+//        if (rtwvif->mac_id >= RTW_MAX_MAC_ID_NUM) {
+//                mutex_unlock(&rtwdev->mutex);
+//                return -ENOSPC;
+//        }
+//
+//        port = find_first_zero_bit(rtwdev->hw_port, RTW_PORT_NUM);
+	port = 0;
+//        if (port >= RTW_PORT_NUM) {
+//                mutex_unlock(&rtwdev->mutex);
+//                return -EINVAL;
+//        }
+//        set_bit(port, rtwdev->hw_port);
+//
+//        rtwvif->port = port;
+//        rtwvif->conf = &rtw_vif_port[port];
+        rtwvif.conf = &rtw_vif_port[port];
+//        rtw_leave_lps_deep(rtwdev);
+//
+//        switch (vif->type) {
+//        case NL80211_IFTYPE_AP:
+//        case NL80211_IFTYPE_MESH_POINT:
+//                rtw_add_rsvd_page_bcn(rtwdev, rtwvif);
+//                net_type = RTW_NET_AP_MODE;
+//                bcn_ctrl = BIT_EN_BCN_FUNCTION | BIT_DIS_TSF_UDT;
+//                break;
+//        case NL80211_IFTYPE_ADHOC:
+//                rtw_add_rsvd_page_bcn(rtwdev, rtwvif);
+//                net_type = RTW_NET_AD_HOC;
+//                bcn_ctrl = BIT_EN_BCN_FUNCTION | BIT_DIS_TSF_UDT;
+//                break;
+//        case NL80211_IFTYPE_STATION:
+//                rtw_add_rsvd_page_sta(rtwdev, rtwvif);
+	net_type = RTW_NET_NO_LINK;
+	bcn_ctrl = BIT_EN_BCN_FUNCTION;
+//                break;
+//        default:
+//                WARN_ON(1);
+//                clear_bit(rtwvif->port, rtwdev->hw_port);
+//                mutex_unlock(&rtwdev->mutex);
+//                return -EINVAL;
+//        }
+//
+//        ether_addr_copy(rtwvif->mac_addr, vif->addr);
+	IEEE80211_ADDR_COPY(rtwvif.mac_addr, ic->ic_myaddr);
+	config |= PORT_SET_MAC_ADDR;
+//	rtwvif->net_type = net_type;
+	rtwvif.net_type = net_type;
+	config |= PORT_SET_NET_TYPE;
+//	rtwvif->bcn_ctrl = bcn_ctrl;
+	rtwvif.bcn_ctrl = bcn_ctrl;
+	config |= PORT_SET_BCN_CTRL;
+	rtw_vif_port_config(rtwdev, &rtwvif, config);
+//        rtw_core_port_switch(rtwdev, vif);
+//        rtw_recalc_lps(rtwdev, vif);
+//
+//        mutex_unlock(&rtwdev->mutex);
+//
+//        rtw_dbg(rtwdev, RTW_DBG_STATE, "start vif %pM mac_id %d on port %d\n",
+//                vif->addr, rtwvif->mac_id, rtwvif->port);
+	return 0;
+}
+
+// }}}
+
 int
 urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
@@ -30652,6 +30792,10 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				set_bit(RTW_FLAG_RUNNING, rtwdev->flags);
 
 				ifp->if_flags |= IFF_RUNNING;
+
+				// XXX testing idea of rtw_ops_add_interface()
+				rtw_ops_add_interface(rtwdev);
+
 				ieee80211_begin_scan(ifp);
 
 			}
@@ -30863,4 +31007,4 @@ urtwm_detach(struct device *self, int flags)
 // TODO NOTES:
 // Check whether FW_FEATURE_NOTIFY_SCAN really exist, maybe we don't need to
 // send command at all
-// Maybe we should rtw_ops_add_interface first?
+// + Maybe we should rtw_ops_add_interface first? - didn't work
