@@ -332,6 +332,29 @@ struct rtw88_hal;
 DECLARE_EWMA(thermal, 10, 4);
 
 
+#define RTW_MAX_SEC_CAM_NUM             32
+
+#define RTW_SEC_CMD_REG                 0x670
+#define RTW_SEC_WRITE_REG               0x674
+#define RTW_SEC_READ_REG                0x678
+#define RTW_SEC_CONFIG                  0x680
+
+#define RTW_SEC_CAM_ENTRY_SHIFT         3
+#define RTW_SEC_DEFAULT_KEY_NUM         4
+#define RTW_SEC_CMD_WRITE_ENABLE        BIT(16)
+#define RTW_SEC_CMD_CLEAR               BIT(30)
+#define RTW_SEC_CMD_POLLING             BIT(31)
+
+#define RTW_SEC_TX_UNI_USE_DK           BIT(0)
+#define RTW_SEC_RX_UNI_USE_DK           BIT(1)
+#define RTW_SEC_TX_DEC_EN               BIT(2)
+#define RTW_SEC_RX_DEC_EN               BIT(3)
+#define RTW_SEC_TX_BC_USE_DK            BIT(6)
+#define RTW_SEC_RX_BC_USE_DK            BIT(7)
+
+#define RTW_SEC_ENGINE_EN               BIT(9)
+
+
 // {{{ phy crap
 
 enum rtw_phy_band_type {
@@ -23148,6 +23171,40 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+enum rtw_flags {
+        RTW_FLAG_RUNNING,
+        RTW_FLAG_FW_RUNNING,
+        RTW_FLAG_SCANNING,
+        RTW_FLAG_POWERON,
+        RTW_FLAG_LEISURE_PS,
+        RTW_FLAG_LEISURE_PS_DEEP,
+        RTW_FLAG_DIG_DISABLE,
+        RTW_FLAG_BUSY_TRAFFIC,
+        RTW_FLAG_WOWLAN,
+        RTW_FLAG_RESTARTING,
+        RTW_FLAG_RESTART_TRIGGERING,
+        RTW_FLAG_FORCE_LOWEST_RATE,
+
+        NUM_OF_RTW_FLAGS,
+};
+
+struct rtw_cam_entry {
+        bool valid;
+        bool group;
+        u8 addr[ETH_ALEN];
+        u8 hw_key_type;
+//        struct ieee80211_key_conf *key;
+};
+
+struct rtw_sec_desc {
+        /* search strategy */
+        bool default_key_search;
+
+        u32 total_cam_num;
+        struct rtw_cam_entry cam_table[RTW_MAX_SEC_CAM_NUM];
+        DECLARE_BITMAP(cam_map, RTW_MAX_SEC_CAM_NUM);
+};
+
 enum rtw_fw_rf_type {
         FW_RF_1T2R = 0,
         FW_RF_2T4R = 1,
@@ -23720,22 +23777,22 @@ enum rtw88_wlan_cpu {
 	RTW88_WCPU_11N,
 };
 
-enum rtw_flags {
-	RTW88_RTW_FLAG_RUNNING,
-	RTW88_RTW_FLAG_FW_RUNNING,
-	RTW88_RTW_FLAG_SCANNING,
-	RTW88_RTW_FLAG_POWERON,
-	RTW88_RTW_FLAG_LEISURE_PS,
-	RTW88_RTW_FLAG_LEISURE_PS_DEEP,
-	RTW88_RTW_FLAG_DIG_DISABLE,
-	RTW88_RTW_FLAG_BUSY_TRAFFIC,
-	RTW88_RTW_FLAG_WOWLAN,
-	RTW88_RTW_FLAG_RESTARTING,
-	RTW88_RTW_FLAG_RESTART_TRIGGERING,
-	RTW88_RTW_FLAG_FORCE_LOWEST_RATE,
-
-	NUM_OF_RTW_FLAGS,
-};
+//enum rtw_flags {
+//	RTW88_RTW_FLAG_RUNNING,
+//	RTW88_RTW_FLAG_FW_RUNNING,
+//	RTW88_RTW_FLAG_SCANNING,
+//	RTW88_RTW_FLAG_POWERON,
+//	RTW88_RTW_FLAG_LEISURE_PS,
+//	RTW88_RTW_FLAG_LEISURE_PS_DEEP,
+//	RTW88_RTW_FLAG_DIG_DISABLE,
+//	RTW88_RTW_FLAG_BUSY_TRAFFIC,
+//	RTW88_RTW_FLAG_WOWLAN,
+//	RTW88_RTW_FLAG_RESTARTING,
+//	RTW88_RTW_FLAG_RESTART_TRIGGERING,
+//	RTW88_RTW_FLAG_FORCE_LOWEST_RATE,
+//
+//	NUM_OF_RTW_FLAGS,
+//};
 
 struct rtw88_pwr_seq_cmd {
 	uint16_t offset;
@@ -25069,7 +25126,7 @@ struct rtw_dev {
 	struct rtw_fifo_conf fifo;
 	struct rtw_fw_state fw;
 	struct rtw88_efuse efuse;
-//	struct rtw_sec_desc sec;
+	struct rtw_sec_desc sec;
 //	struct rtw_traffic_stats stats;
 	struct rtw_regd regd;
 //	struct rtw_bf_info bf_info;
@@ -27058,7 +27115,7 @@ static int __rtw_download_firmware(struct rtw_dev *rtwdev,
 	rtwdev->h2c.last_box_num = 0;
 	rtwdev->h2c.seq = 0;
 
-	set_bit(RTW88_RTW_FLAG_FW_RUNNING, rtwdev->flags);
+	set_bit(RTW_FLAG_FW_RUNNING, rtwdev->flags);
 //
 	return 0;
 //
@@ -27438,7 +27495,7 @@ rtw88_mac_power_switch(struct rtw_dev *rtwdev, int pwr_on)
 //	}
 
 	if (!pwr_on)
-		clear_bit(RTW88_RTW_FLAG_POWERON, rtwdev->flags);
+		clear_bit(RTW_FLAG_POWERON, rtwdev->flags);
 
 	pwr_seq = pwr_on ? chip->pwr_on_seq : chip->pwr_off_seq;
 	ret = rtw88_pwr_seq_parser(rtwdev, pwr_seq);
@@ -27448,7 +27505,7 @@ rtw88_mac_power_switch(struct rtw_dev *rtwdev, int pwr_on)
 //		rtw88_write32(rtwdev, RTW88_RTW_REG_SDIO_HIMR, imr);
 
 	if (!ret && pwr_on)
-		set_bit(RTW88_RTW_FLAG_POWERON, rtwdev->flags);
+		set_bit(RTW_FLAG_POWERON, rtwdev->flags);
 
 	return ret;
 }
@@ -29020,6 +29077,29 @@ static const struct rtw8822b_rfe_info rtw8822b_rfe_info[] = {
 
 // {{{ power_on
 
+void rtw_sec_enable_sec_engine(struct rtw_dev *rtwdev)
+{
+        struct rtw_sec_desc *sec = &rtwdev->sec;
+        u16 ctrl_reg;
+        u16 sec_config;
+
+        /* default use default key search for now */
+        sec->default_key_search = true;
+
+        ctrl_reg = rtw_read16(rtwdev, REG_CR);
+        ctrl_reg |= RTW_SEC_ENGINE_EN;
+        rtw_write16(rtwdev, REG_CR, ctrl_reg);
+
+        sec_config = rtw_read16(rtwdev, RTW_SEC_CONFIG);
+
+        sec_config |= RTW_SEC_TX_DEC_EN | RTW_SEC_RX_DEC_EN;
+        if (sec->default_key_search)
+                sec_config |= RTW_SEC_TX_UNI_USE_DK | RTW_SEC_RX_UNI_USE_DK |
+                              RTW_SEC_TX_BC_USE_DK | RTW_SEC_RX_BC_USE_DK;
+
+        rtw_write16(rtwdev, RTW_SEC_CONFIG, sec_config);
+}
+
 void
 rtw_fw_send_phydm_info(struct rtw_dev *rtwdev)
 {
@@ -30200,10 +30280,27 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 	case SIOCSIFFLAGS:
 		if (ifp->if_flags & IFF_UP) {
 			if (!(ifp->if_flags & IFF_RUNNING)) {
+				// rtw_core_start
 				printf("%s: starting device\n", __func__);
 				ret = rtwdev->chip->ops->power_on(rtwdev);
 				if (ret)
 					return ret;
+				rtw_sec_enable_sec_engine(rtwdev);
+
+				// XXX TODO - maybe works without it?
+//				rtwdev->lps_conf.deep_mode = rtw_update_lps_deep_mode(rtwdev, &rtwdev->fw);
+//				rtwdev->lps_conf.wow_deep_mode = rtw_update_lps_deep_mode(rtwdev, &rtwdev->wow_fw);
+
+				/* rcr reset after powered on */
+				rtw_write32(rtwdev, REG_RCR, rtwdev->hal.rcr);
+
+				// XXX: watchdog
+//				ieee80211_queue_delayed_work(rtwdev->hw, &rtwdev->watch_dog_work,
+//				    RTW_WATCH_DOG_DELAY_TIME);
+
+				set_bit(RTW_FLAG_RUNNING, rtwdev->flags);
+
+
 			}
 		} else {
 //			if (ifp->if_flags & IFF_RUNNING)
