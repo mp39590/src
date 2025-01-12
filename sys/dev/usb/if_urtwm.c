@@ -28795,6 +28795,51 @@ static const struct rtw8822b_rfe_info rtw8822b_rfe_info[] = {
 
 // {{{ power_on
 
+void rtw_bf_phy_init(struct rtw_dev *rtwdev)
+{
+        u8 tmp8;
+        u32 tmp32;
+        u8 retry_limit = 0xA;
+        u8 ndpa_rate = 0x10;
+        u8 ack_policy = 3;
+
+        tmp32 = rtw_read32(rtwdev, REG_MU_TX_CTL);
+        /* Enable P1 aggr new packet according to P0 transfer time */
+        tmp32 |= BIT_MU_P1_WAIT_STATE_EN;
+        /* MU Retry Limit */
+        tmp32 &= ~BIT_MASK_R_MU_RL;
+        tmp32 |= (retry_limit << BIT_SHIFT_R_MU_RL) & BIT_MASK_R_MU_RL;
+        /* Disable Tx MU-MIMO until sounding done */
+        tmp32 &= ~BIT_EN_MU_MIMO;
+        /* Clear validity of MU STAs */
+        tmp32 &= ~BIT_MASK_R_MU_TABLE_VALID;
+        rtw_write32(rtwdev, REG_MU_TX_CTL, tmp32);
+
+        /* MU-MIMO Option as default value */
+        tmp8 = ack_policy << BIT_SHIFT_WMAC_TXMU_ACKPOLICY;
+        tmp8 |= BIT_WMAC_TXMU_ACKPOLICY_EN;
+        rtw_write8(rtwdev, REG_WMAC_MU_BF_OPTION, tmp8);
+
+        /* MU-MIMO Control as default value */
+        rtw_write16(rtwdev, REG_WMAC_MU_BF_CTL, 0);
+        /* Set MU NDPA rate & BW source */
+        rtw_write32_set(rtwdev, REG_TXBF_CTRL, BIT_USE_NDPA_PARAMETER);
+        /* Set NDPA Rate */
+        rtw_write8(rtwdev, REG_NDPA_OPT_CTRL, ndpa_rate);
+
+        rtw_write32_mask(rtwdev, REG_BBPSF_CTRL, BIT_MASK_CSI_RATE,
+                         DESC_RATE6M);
+}
+
+
+static void rtw8822b_phy_bf_init(struct rtw_dev *rtwdev)
+{
+        rtw_bf_phy_init(rtwdev);
+        /* Grouping bitmap parameters */
+        rtw_write32(rtwdev, 0x1C94, 0xAFFFAFFF);
+}
+
+
 #define RTW_TXSCALE_SIZE 37
 static const u32 rtw8822b_txscale_tbl[RTW_TXSCALE_SIZE] = {
         0x081, 0x088, 0x090, 0x099, 0x0a2, 0x0ac, 0x0b6, 0x0c0, 0x0cc, 0x0d8,
@@ -29395,7 +29440,7 @@ static void rtw8822b_phy_set_param(struct rtw_dev *rtwdev)
 	rtw8822b_phy_rfe_init(rtwdev);
 	rtw8822b_pwrtrack_init(rtwdev);
 //
-//        rtw8822b_phy_bf_init(rtwdev);
+	rtw8822b_phy_bf_init(rtwdev);
 }
 
 
