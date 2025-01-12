@@ -25510,6 +25510,7 @@ struct urtwm_softc {
 	struct usbd_pipe		*int_pipe;
 #define TX_DESC_QSEL_MAX                20
 	int				qsel_to_ep[TX_DESC_QSEL_MAX];
+	int (*sc_newstate)(struct ieee80211com *, enum ieee80211_state, int);
 };
 
 // }}}
@@ -30228,7 +30229,7 @@ err:
 int
 urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
-//	struct urtwm_softc *sc = ic->ic_softc;
+	struct urtwm_softc *sc = ic->ic_softc;
 	enum ieee80211_state ostate;
 	int /*ret,*/ s, error;
 
@@ -30246,7 +30247,7 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		break;
 	}
 
-	error = ic->ic_newstate(ic, nstate, arg);
+	error = sc->sc_newstate(ic, nstate, arg);
 	splx(s);
 
 	return (error);
@@ -30457,7 +30458,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	ieee80211_ifattach(ifp);
 
 	/* Override state transition machine. */
-//	sc->sc_newstate = ic->ic_newstate;
+	sc->sc_newstate = ic->ic_newstate;
 	ic->ic_newstate = urtwm_newstate;
 	ieee80211_media_init(ifp, urtwm_media_change, ieee80211_media_status);
 
