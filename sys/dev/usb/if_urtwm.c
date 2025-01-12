@@ -30860,5 +30860,7 @@ urtwm_detach(struct device *self, int flags)
 	return (0);
 }
 
+// TODO NOTES:
 // Check whether FW_FEATURE_NOTIFY_SCAN really exist, maybe we don't need to
 // send command at all
+// Maybe we should rtw_ops_add_interface first?
