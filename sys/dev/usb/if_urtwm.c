@@ -30235,10 +30235,9 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	s = splnet();
 	ostate = ic->ic_state;
 
-	if (nstate != ostate)
-		printf("%s: newstate %s -> %s\n", __func__,
-		    ieee80211_state_name[ostate],
-		    ieee80211_state_name[nstate]);
+	printf("%s: newstate %s -> %s\n", __func__,
+	    ieee80211_state_name[ostate],
+	    ieee80211_state_name[nstate]);
 
 	switch (nstate) {
 	case IEEE80211_S_INIT:
