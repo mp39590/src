@@ -30301,6 +30301,7 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				set_bit(RTW_FLAG_RUNNING, rtwdev->flags);
 
 				ifp->if_flags |= IFF_RUNNING;
+				ieee80211_begin_scan(ifp);
 
 			}
 		} else {
@@ -30343,6 +30344,11 @@ urtwm_media_change(struct ifnet *ifp)
 //	}
 	return (error);
 }
+
+static const uint8_t rtw_channels[] = {
+	/* 2.4 GHz */
+	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+};
 
 void
 urtwm_attach(struct device *parent, struct device *self, void *aux)
@@ -30448,6 +30454,9 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 
 	IEEE80211_ADDR_COPY(ic->ic_myaddr, efuse->addr);
 
+	/* IBSS channel undefined for now. */
+	ic->ic_ibss_chan = &ic->ic_channels[1];
+
 	ifp->if_softc = sc;
 	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
 	ifp->if_ioctl = urtwm_ioctl;
@@ -30455,11 +30464,39 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 //	ifp->if_watchdog = rtwn_watchdog;
 	memcpy(ifp->if_xname, sc->sc_pdev.dv_xname, IFNAMSIZ);
 	if_attach(ifp);
+
+	// iwx_init_channel_map()
+	for (int ch_idx = 0; ch_idx < nitems(rtw_channels); ch_idx++) {
+		struct ieee80211_channel *channel;
+		int flags;
+		int hw_value = rtw_channels[ch_idx];
+
+		channel = &ic->ic_channels[hw_value];
+
+		flags = IEEE80211_CHAN_2GHZ;
+		channel->ic_flags
+		    = IEEE80211_CHAN_CCK
+		    | IEEE80211_CHAN_OFDM
+		    | IEEE80211_CHAN_DYN
+		    | IEEE80211_CHAN_2GHZ;
+
+		channel->ic_freq = ieee80211_ieee2mhz(hw_value, flags);
+	}
+
 	ieee80211_ifattach(ifp);
 
 	/* Override state transition machine. */
 	sc->sc_newstate = ic->ic_newstate;
 	ic->ic_newstate = urtwm_newstate;
+
+	// iwx_preinit()
+	/* Configure channel information obtained from firmware. */
+	// XXX really needed? called from ieee80211_ifattach()
+	//ieee80211_channel_init(ifp);
+	/* Configure MAC address. */
+	ret = if_setlladdr(ifp, ic->ic_myaddr);
+	if (ret)
+		printf("%s: could not set MAC address (error %d)\n", __func__, ret);
 	ieee80211_media_init(ifp, urtwm_media_change, ieee80211_media_status);
 
 	printf("%s: ----- OK -----\n", __func__);

@@ -72,6 +72,7 @@ void ieee80211_configure_ampdu_tx(struct ieee80211com *, int);
 void
 ieee80211_begin_bgscan(struct ifnet *ifp)
 {
+	printf("%s:\n", __func__);
 	struct ieee80211com *ic = (void *)ifp;
 
 	if ((ic->ic_flags & IEEE80211_F_BGSCAN) ||
