@@ -27649,7 +27649,7 @@ static inline const struct rtw_rfe_def *rtw_get_rfe_def(struct rtw_dev *rtwdev)
         if (efuse->rfe_option < chip->rfe_defs_size)
                 rfe_def = &chip->rfe_defs[efuse->rfe_option];
 
-        printf("%s: use rfe_def[%d]\n", __func__, efuse->rfe_option);
+//        printf("%s: use rfe_def[%d]\n", __func__, efuse->rfe_option);
         return rfe_def;
 }
 
