@@ -354,6 +354,44 @@ DECLARE_EWMA(thermal, 10, 4);
 
 #define RTW_SEC_ENGINE_EN               BIT(9)
 
+#define SET_H2C_CMD_ID_CLASS(h2c_pkt, value)                                   \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x00, value, GENMASK(7, 0))
+
+#define SET_SCAN_START(h2c_pkt, value)                                         \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x00, value, BIT(8))
+
+/* Command H2C */
+#define H2C_CMD_RSVD_PAGE               0x0
+#define H2C_CMD_MEDIA_STATUS_RPT        0x01
+#define H2C_CMD_SET_PWR_MODE            0x20
+#define H2C_CMD_LPS_PG_INFO             0x2b
+#define H2C_CMD_DEFAULT_PORT            0x2c
+#define H2C_CMD_RA_INFO                 0x40
+#define H2C_CMD_RSSI_MONITOR            0x42
+#define H2C_CMD_BCN_FILTER_OFFLOAD_P0   0x56
+#define H2C_CMD_BCN_FILTER_OFFLOAD_P1   0x57
+#define H2C_CMD_WL_PHY_INFO             0x58
+#define H2C_CMD_SCAN                    0x59
+#define H2C_CMD_ADAPTIVITY              0x5A
+
+#define H2C_CMD_COEX_TDMA_TYPE          0x60
+#define H2C_CMD_QUERY_BT_INFO           0x61
+#define H2C_CMD_FORCE_BT_TX_POWER       0x62
+#define H2C_CMD_IGNORE_WLAN_ACTION      0x63
+#define H2C_CMD_WL_CH_INFO              0x66
+#define H2C_CMD_QUERY_BT_MP_INFO        0x67
+#define H2C_CMD_BT_WIFI_CONTROL         0x69
+#define H2C_CMD_WIFI_CALIBRATION        0x6d
+#define H2C_CMD_QUERY_BT_HID_INFO       0x73
+
+#define H2C_CMD_KEEP_ALIVE              0x03
+#define H2C_CMD_DISCONNECT_DECISION     0x04
+#define H2C_CMD_WOWLAN                  0x80
+#define H2C_CMD_REMOTE_WAKE_CTRL        0x81
+#define H2C_CMD_AOAC_GLOBAL_INFO        0x82
+#define H2C_CMD_NLO_INFO                0x8C
+
+#define H2C_CMD_RECOVER_BT_DEV          0xD1
 
 // {{{ phy crap
 
@@ -23171,6 +23209,46 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+struct rtw_h2c_cmd {
+        __le32 msg;
+        __le32 msg_ext;
+} __packed;
+
+
+struct rtw_vif {
+//        enum rtw_net_type net_type;
+//        u16 aid;
+//        u8 mac_id;
+        u8 mac_addr[ETH_ALEN];
+//        u8 bssid[ETH_ALEN];
+//        u8 port;
+//        u8 bcn_ctrl;
+//        struct list_head rsvd_page_list;
+//        struct ieee80211_tx_queue_params tx_params[IEEE80211_NUM_ACS];
+//        const struct rtw_vif_port *conf;
+//        struct cfg80211_scan_request *scan_req;
+//        struct ieee80211_scan_ies *scan_ies;
+//
+//        struct rtw_traffic_stats stats;
+//
+//        struct rtw_bfee bfee;
+};
+
+
+enum rtw_fw_feature {
+        FW_FEATURE_SIG = BIT(0),
+        FW_FEATURE_LPS_C2H = BIT(1),
+        FW_FEATURE_LCLK = BIT(2),
+        FW_FEATURE_PG = BIT(3),
+        FW_FEATURE_TX_WAKE = BIT(4),
+        FW_FEATURE_BCN_FILTER = BIT(5),
+        FW_FEATURE_NOTIFY_SCAN = BIT(6),
+        FW_FEATURE_ADAPTIVITY = BIT(7),
+        FW_FEATURE_SCAN_OFFLOAD = BIT(8),
+        FW_FEATURE_MAX = BIT(31),
+};
+
+
 enum rtw_flags {
         RTW_FLAG_RUNNING,
         RTW_FLAG_FW_RUNNING,
@@ -23231,6 +23309,52 @@ enum rtw_phy_cck_pd_lv {
 struct rtw_hw_reg {
         u32 addr;
         u32 mask;
+};
+
+struct rtw_vif_port {
+        struct rtw_hw_reg mac_addr;
+        struct rtw_hw_reg bssid;
+        struct rtw_hw_reg net_type;
+        struct rtw_hw_reg aid;
+        struct rtw_hw_reg bcn_ctrl;
+};
+
+static const struct rtw_vif_port rtw_vif_port[] = {
+        [0] = {
+                .mac_addr       = {.addr = 0x0610},
+                .bssid          = {.addr = 0x0618},
+                .net_type       = {.addr = 0x0100, .mask = 0x30000},
+                .aid            = {.addr = 0x06a8, .mask = 0x7ff},
+                .bcn_ctrl       = {.addr = 0x0550, .mask = 0xff},
+        },
+        [1] = {
+                .mac_addr       = {.addr = 0x0700},
+                .bssid          = {.addr = 0x0708},
+                .net_type       = {.addr = 0x0100, .mask = 0xc0000},
+                .aid            = {.addr = 0x0710, .mask = 0x7ff},
+                .bcn_ctrl       = {.addr = 0x0551, .mask = 0xff},
+        },
+        [2] = {
+                .mac_addr       = {.addr = 0x1620},
+                .bssid          = {.addr = 0x1628},
+                .net_type       = {.addr = 0x1100, .mask = 0x3},
+                .aid            = {.addr = 0x1600, .mask = 0x7ff},
+                .bcn_ctrl       = {.addr = 0x0578, .mask = 0xff},
+        },
+        [3] = {
+                .mac_addr       = {.addr = 0x1630},
+                .bssid          = {.addr = 0x1638},
+                .net_type       = {.addr = 0x1100, .mask = 0xc},
+                .aid            = {.addr = 0x1604, .mask = 0x7ff},
+                .bcn_ctrl       = {.addr = 0x0579, .mask = 0xff},
+        },
+        [4] = {
+                .mac_addr       = {.addr = 0x1640},
+                .bssid          = {.addr = 0x1648},
+                .net_type       = {.addr = 0x1100, .mask = 0x30},
+                .aid            = {.addr = 0x1608, .mask = 0x7ff},
+                .bcn_ctrl       = {.addr = 0x057a, .mask = 0xff},
+        },
 };
 
 
@@ -26543,6 +26667,12 @@ static void rtw_fw_send_h2c_packet(struct rtw_dev *rtwdev, u8 *h2c_pkt)
         rtwdev->h2c.seq++;
 }
 
+//static inline bool rtw_fw_feature_check(struct rtw_fw_state *fw,
+//                                        enum rtw_fw_feature feature)
+//{
+//        return !!(fw->feature & feature);
+//}
+
 
 // }}}
 
@@ -27321,6 +27451,81 @@ timevaladd(struct timeval *t1, const struct timeval *t2)
 	} while (1);								\
 	(_cond) ? 0 : (-ETIMEDOUT);						\
 })
+
+// --- for hw scan
+
+#define REG_HMEBOX0             0x01D0
+#define REG_HMEBOX1             0x01D4
+#define REG_HMEBOX2             0x01D8
+#define REG_HMEBOX3             0x01DC
+#define REG_LLT_INIT            0x01E0
+#define BIT_LLT_WRITE_ACCESS    BIT(30)
+#define REG_HMEBOX0_EX          0x01F0
+#define REG_HMEBOX1_EX          0x01F4
+#define REG_HMEBOX2_EX          0x01F8
+#define REG_HMEBOX3_EX          0x01FC
+
+
+static void rtw_fw_send_h2c_command(struct rtw_dev *rtwdev,
+                                    u8 *h2c)
+{
+        struct rtw_h2c_cmd *h2c_cmd = (struct rtw_h2c_cmd *)h2c;
+        u8 box;
+        u8 box_state;
+        u32 box_reg, box_ex_reg;
+        int ret;
+
+//        rtw_dbg(rtwdev, RTW_DBG_FW,
+//                "send H2C content %02x%02x%02x%02x %02x%02x%02x%02x\n",
+//                h2c[3], h2c[2], h2c[1], h2c[0],
+//                h2c[7], h2c[6], h2c[5], h2c[4]);
+//	printf("%s: send H2C content %02x%02x%02x%02x %02x%02x%02x%02x\n",
+//	    h2c[3], h2c[2], h2c[1], h2c[0],
+//	    h2c[7], h2c[6], h2c[5], h2c[4]);
+
+//        lockdep_assert_held(&rtwdev->mutex);
+
+        box = rtwdev->h2c.last_box_num;
+        switch (box) {
+        case 0:
+                box_reg = REG_HMEBOX0;
+                box_ex_reg = REG_HMEBOX0_EX;
+                break;
+        case 1:
+                box_reg = REG_HMEBOX1;
+                box_ex_reg = REG_HMEBOX1_EX;
+                break;
+        case 2:
+                box_reg = REG_HMEBOX2;
+                box_ex_reg = REG_HMEBOX2_EX;
+                break;
+        case 3:
+                box_reg = REG_HMEBOX3;
+                box_ex_reg = REG_HMEBOX3_EX;
+                break;
+        default:
+                printf("%s: invalid h2c mail box number\n", __func__);
+                return;
+        }
+
+        ret = read_poll_timeout_atomic(rtw_read8, box_state,
+                                       !((box_state >> box) & 0x1), 100, 3000,
+                                       false, rtwdev, REG_HMETFR);
+
+        if (ret) {
+                printf("%s: failed to send h2c command\n", __func__);
+                return;
+        }
+
+        rtw_write32(rtwdev, box_ex_reg, le32_to_cpu(h2c_cmd->msg_ext));
+        rtw_write32(rtwdev, box_reg, le32_to_cpu(h2c_cmd->msg));
+
+        if (++rtwdev->h2c.last_box_num >= 4)
+                rtwdev->h2c.last_box_num = 0;
+}
+
+
+// --- end
 
 int
 rtw88_do_pwr_poll_cmd(struct rtw_dev *rtwdev, uint32_t addr, uint32_t mask,
@@ -30226,10 +30431,153 @@ err:
 
 // }}}
 
+// {{{ hw scan
+
+void rtw_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
+{
+        u8 h2c_pkt[H2C_PKT_SIZE] = {0};
+
+        SET_H2C_CMD_ID_CLASS(h2c_pkt, H2C_CMD_SCAN);
+        SET_SCAN_START(h2c_pkt, start);
+
+        rtw_fw_send_h2c_command(rtwdev, h2c_pkt);
+}
+
+void rtw_core_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
+{
+	// XXX feature check wasn't implemented yet
+//        if (!rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_NOTIFY_SCAN))
+//                return;
+
+        if (start) {
+                rtw_fw_scan_notify(rtwdev, true);
+        } else {
+		printf("%s: TODO\n", __func__);
+//                reinit_completion(&rtwdev->fw_scan_density);
+//                rtw_fw_scan_notify(rtwdev, false);
+//                if (!wait_for_completion_timeout(&rtwdev->fw_scan_density,
+//                                                 SCAN_NOTIFY_TIMEOUT))
+//                        rtw_warn(rtwdev, "firmware failed to report density after scan\n");
+        }
+}
+
+// XXX signature changed
+static void rtw_vif_write_addr(struct rtw_dev *rtwdev, u32 start, const u8 *addr)
+{
+        int i;
+
+        for (i = 0; i < ETH_ALEN; i++)
+                rtw_write8(rtwdev, start + i, addr[i]);
+}
+
+
+//void rtw_core_scan_start(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
+//                         const u8 *mac_addr, bool hw_scan)
+void rtw_core_scan_start(struct rtw_dev *rtwdev, const u8 *mac_addr, bool hw_scan)
+{
+//        u32 config = 0;
+//        int ret = 0;
+
+	// XXX: try without lps
+//        rtw_leave_lps(rtwdev);
+
+//        if (hw_scan && (rtwdev->hw->conf.flags & IEEE80211_CONF_IDLE)) {
+//                ret = rtw_leave_ips(rtwdev);
+//                if (ret) {
+//                        rtw_err(rtwdev, "failed to leave idle state\n");
+//                        return;
+//                }
+//        }
+
+//        ether_addr_copy(rtwvif->mac_addr, mac_addr);
+//        config |= PORT_SET_MAC_ADDR;
+//        rtw_vif_port_config(rtwdev, rtwvif, config);
+	// XXX: shouldn't we do rtw_ops_add_interface() first?
+	// XXX: writing to zero vif, hardcoded by misha
+	rtw_vif_write_addr(rtwdev, rtw_vif_port[0].mac_addr.addr, mac_addr);
+
+	// XXX no coex
+//        rtw_coex_scan_notify(rtwdev, COEX_SCAN_START);
+	rtw_core_fw_scan_notify(rtwdev, true);
+
+        set_bit(RTW_FLAG_DIG_DISABLE, rtwdev->flags);
+        set_bit(RTW_FLAG_SCANNING, rtwdev->flags);
+}
+
+//void rtw_hw_scan_start(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
+//                       struct ieee80211_scan_request *scan_req)
+void rtw_hw_scan_start(struct rtw_dev *rtwdev)
+{
+//        struct rtw_vif *rtwvif = (struct rtw_vif *)vif->drv_priv;
+//        struct cfg80211_scan_request *req = &scan_req->req;
+        u8 mac_addr[ETH_ALEN];
+	struct urtwm_softc *sc = rtwdev->cookie;
+	struct ieee80211com *ic = &sc->sc_ic;
+
+//        rtwdev->scan_info.scanning_vif = vif;
+//        rtwvif->scan_ies = &scan_req->ies;
+//        rtwvif->scan_req = req;
+
+//        ieee80211_stop_queues(rtwdev->hw);
+//        XXX no op for usb
+//        rtw_leave_lps_deep(rtwdev);
+	// XXX: later
+//        rtw_hci_flush_all_queues(rtwdev, false);
+//        rtw_mac_flush_all_queues(rtwdev, false);
+//        if (req->flags & NL80211_SCAN_FLAG_RANDOM_ADDR)
+//                get_random_mask_addr(mac_addr, req->mac_addr,
+//                                     req->mac_addr_mask);
+//        else
+//                ether_addr_copy(mac_addr, vif->addr);
+
+	IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
+
+        rtw_core_scan_start(rtwdev, mac_addr, true);
+
+        rtwdev->hal.rcr &= ~BIT_CBSSID_BCN;
+        rtw_write32(rtwdev, REG_RCR, rtwdev->hal.rcr);
+}
+
+//static int rtw_ops_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+//                           struct ieee80211_scan_request *req)
+static int rtw_ops_hw_scan(struct rtw_dev *rtwdev)
+{
+//        struct rtw_dev *rtwdev = hw->priv;
+        int ret = 0;
+
+	// XXX need functions to actually fulfill fw features
+//        if (!rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_SCAN_OFFLOAD)) {
+//		printf("%s: no FW_FEATURE_SCAN_OFFLOAD\n", __func__);
+//                return 1;
+//	}
+
+//        if (test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
+//                return -EBUSY;
+
+	// XXX locking
+//        mutex_lock(&rtwdev->mutex);
+//	rtw_hw_scan_start(rtwdev, vif, req);
+	rtw_hw_scan_start(rtwdev);
+//        ret = rtw_hw_scan_offload(rtwdev, vif, true);
+//        if (ret) {
+//                rtw_hw_scan_abort(rtwdev);
+//                rtw_err(rtwdev, "HW scan failed with status: %d\n", ret);
+//        }
+        // XXX locking
+//        mutex_unlock(&rtwdev->mutex);
+
+        return ret;
+}
+
+
+// }}}
+
 int
 urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
 	struct urtwm_softc *sc = ic->ic_softc;
+	struct rtw88_softc *sc_sc = &sc->sc_sc;
+	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	enum ieee80211_state ostate;
 	int /*ret,*/ s, error;
 
@@ -30242,6 +30590,9 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 
 	switch (nstate) {
 	case IEEE80211_S_INIT:
+		break;
+	case IEEE80211_S_SCAN:
+		rtw_ops_hw_scan(rtwdev);
 		break;
 	default:
 		break;
@@ -30508,3 +30859,6 @@ urtwm_detach(struct device *self, int flags)
 {
 	return (0);
 }
+
+// Check whether FW_FEATURE_NOTIFY_SCAN really exist, maybe we don't need to
+// send command at all
