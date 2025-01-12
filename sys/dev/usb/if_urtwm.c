@@ -27501,6 +27501,7 @@ static void rtw_fw_send_h2c_command(struct rtw_dev *rtwdev,
 //        lockdep_assert_held(&rtwdev->mutex);
 
         box = rtwdev->h2c.last_box_num;
+        printf("%s: box=%d\n", __func__, box);
         switch (box) {
         case 0:
                 box_reg = REG_HMEBOX0;
@@ -27527,6 +27528,7 @@ static void rtw_fw_send_h2c_command(struct rtw_dev *rtwdev,
                                        !((box_state >> box) & 0x1), 100, 3000,
                                        false, rtwdev, REG_HMETFR);
 
+	printf("%s: box_state=0x%x\n", __func__, box_state);
         if (ret) {
                 printf("%s: failed to send h2c command\n", __func__);
                 return;
@@ -31008,3 +31010,4 @@ urtwm_detach(struct device *self, int flags)
 // Check whether FW_FEATURE_NOTIFY_SCAN really exist, maybe we don't need to
 // send command at all
 // + Maybe we should rtw_ops_add_interface first? - didn't work
+// + WE SCAN TWICE, FIRST COMMAND HAS BEEN ACCEPTED
