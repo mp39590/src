@@ -30461,7 +30461,7 @@ void rtw_core_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
         }
 }
 
-// XXX signature changed
+//static void rtw_vif_write_addr(struct rtw_dev *rtwdev, u32 start, u8 *addr)
 static void rtw_vif_write_addr(struct rtw_dev *rtwdev, u32 start, const u8 *addr)
 {
         int i;
