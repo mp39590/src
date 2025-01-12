@@ -24791,7 +24791,7 @@ struct rtw88_hci_ops {
 	void (*interface_cfg)(struct rtw_dev *rtwdev);
 //
 	int (*write_data_rsvd_page)(struct rtw_dev *rtwdev, u8 *buf, u32 size);
-//	int (*write_data_h2c)(struct rtw_dev *rtwdev, u8 *buf, u32 size);
+	int (*write_data_h2c)(struct rtw_dev *rtwdev, u8 *buf, u32 size);
 
 	uint8_t (*read8)(struct rtw_dev *rtwdev, uint16_t addr);
 	uint16_t (*read16)(struct rtw_dev *rtwdev, uint16_t addr);
@@ -26123,6 +26123,17 @@ static int rtw_usb_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf,
 	return rtw_usb_write_data(rtwdev, &pkt_info, buf);
 }
 
+static int rtw_usb_write_data_h2c(struct rtw_dev *rtwdev, u8 *buf, u32 size)
+{
+        struct rtw_tx_pkt_info pkt_info = {0};
+
+        pkt_info.tx_pkt_size = size;
+        pkt_info.qsel = TX_DESC_QSEL_H2C;
+
+        return rtw_usb_write_data(rtwdev, &pkt_info, buf);
+}
+
+
 // ---------- write usb packet end ----------
 
 struct rtw88_hci_ops rtw88_usb_ops = {
@@ -26136,6 +26147,7 @@ struct rtw88_hci_ops rtw88_usb_ops = {
 	.read32 = urtwm_read_32,
 	.write_data_rsvd_page = rtw_usb_write_data_rsvd_page,
 	.interface_cfg = rtw_usb_interface_cfg,
+	.write_data_h2c = rtw_usb_write_data_h2c,
 };
 
 int
@@ -26260,6 +26272,69 @@ rtw_hci_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf, u32 size)
 {
 	return rtwdev->hci.ops->write_data_rsvd_page(rtwdev, buf, size);
 }
+
+/* PKT H2C */
+#define H2C_PKT_CMD_ID 0xFF
+#define H2C_PKT_CATEGORY 0x01
+
+#define H2C_PKT_GENERAL_INFO 0x0D
+#define H2C_PKT_PHYDM_INFO 0x11
+#define H2C_PKT_IQK 0x0E
+
+#define H2C_PKT_CH_SWITCH 0x02
+#define H2C_PKT_UPDATE_PKT 0x0C
+#define H2C_PKT_SCAN_OFFLOAD 0x19
+
+#define H2C_PKT_CH_SWITCH_LEN 0x20
+#define H2C_PKT_UPDATE_PKT_LEN 0x4
+
+#define SET_PKT_H2C_CATEGORY(h2c_pkt, value)                                   \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x00, value, GENMASK(6, 0))
+#define SET_PKT_H2C_CMD_ID(h2c_pkt, value)                                     \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x00, value, GENMASK(15, 8))
+#define SET_PKT_H2C_SUB_CMD_ID(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x00, value, GENMASK(31, 16))
+#define SET_PKT_H2C_TOTAL_LEN(h2c_pkt, value)                                  \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x01, value, GENMASK(15, 0))
+
+static inline void rtw_h2c_pkt_set_header(u8 *h2c_pkt, u8 sub_id)
+{
+        SET_PKT_H2C_CATEGORY(h2c_pkt, H2C_PKT_CATEGORY);
+        SET_PKT_H2C_CMD_ID(h2c_pkt, H2C_PKT_CMD_ID);
+        SET_PKT_H2C_SUB_CMD_ID(h2c_pkt, sub_id);
+}
+
+#define FW_OFFLOAD_H2C_SET_SEQ_NUM(h2c_pkt, value)                             \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x01, value, GENMASK(31, 16))
+#define GENERAL_INFO_SET_FW_TX_BOUNDARY(h2c_pkt, value)                        \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(23, 16))
+
+
+#define H2C_PKT_SIZE            32
+#define H2C_PKT_HDR_SIZE        8
+
+static inline int
+rtw_hci_write_data_h2c(struct rtw_dev *rtwdev, u8 *buf, u32 size)
+{
+        return rtwdev->hci.ops->write_data_h2c(rtwdev, buf, size);
+}
+
+
+static void rtw_fw_send_h2c_packet(struct rtw_dev *rtwdev, u8 *h2c_pkt)
+{
+        int ret;
+
+	// XXX: locking
+//        lockdep_assert_held(&rtwdev->mutex);
+
+        FW_OFFLOAD_H2C_SET_SEQ_NUM(h2c_pkt, rtwdev->h2c.seq);
+        ret = rtw_hci_write_data_h2c(rtwdev, h2c_pkt, H2C_PKT_SIZE);
+        if (ret)
+                printf("%s: failed to send h2c packet\n", __func__);
+        printf("%s: rtwdev->h2c.seq=%d\n", __func__, rtwdev->h2c.seq);
+        rtwdev->h2c.seq++;
+}
+
 
 // }}}
 
@@ -28795,6 +28870,27 @@ static const struct rtw8822b_rfe_info rtw8822b_rfe_info[] = {
 
 // {{{ power_on
 
+void
+rtw_fw_send_general_info(struct rtw_dev *rtwdev)
+{
+        struct rtw_fifo_conf *fifo = &rtwdev->fifo;
+        u8 h2c_pkt[H2C_PKT_SIZE] = {0};
+        u16 total_size = H2C_PKT_HDR_SIZE + 4;
+
+        if (rtw_chip_wcpu_11n(rtwdev))
+                return;
+
+        rtw_h2c_pkt_set_header(h2c_pkt, H2C_PKT_GENERAL_INFO);
+
+        SET_PKT_H2C_TOTAL_LEN(h2c_pkt, total_size);
+
+        GENERAL_INFO_SET_FW_TX_BOUNDARY(h2c_pkt,
+                                        fifo->rsvd_fw_txbuf_addr -
+                                        fifo->rsvd_boundary);
+
+        rtw_fw_send_h2c_packet(rtwdev, h2c_pkt);
+}
+
 void rtw_bf_phy_init(struct rtw_dev *rtwdev)
 {
         u8 tmp8;
@@ -29842,15 +29938,15 @@ int rtw_power_on(struct rtw_dev *rtwdev)
 	}
 //
 	chip->ops->phy_set_param(rtwdev);
-//
+// 	XXX: rtw_usb_start just returns zero
 //        ret = rtw_hci_start(rtwdev);
 //        if (ret) {
 //                rtw_err(rtwdev, "failed to start hci\n");
 //                goto err_off;
 //        }
 //
-//        /* send H2C after HCI has started */
-//        rtw_fw_send_general_info(rtwdev);
+	/* send H2C after HCI has started */
+	rtw_fw_send_general_info(rtwdev);
 //        rtw_fw_send_phydm_info(rtwdev);
 //
 //        wifi_only = !rtwdev->efuse.btcoex;
