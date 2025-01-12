@@ -36,11 +36,13 @@
 
 #include <dev/ic/rtw88reg.h>
 
+#define U8_MAX               UINT8_MAX
 
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 typedef int8_t s8;
+typedef int16_t s16;
 typedef int16_t __le16;
 typedef int32_t __le32;
 typedef int64_t __le64;
@@ -215,6 +217,65 @@ struct rtw88_hal;
         (IS_CH_5G_BAND_1(channel) || IS_CH_5G_BAND_2(channel) || \
          IS_CH_5G_BAND_3(channel) || IS_CH_5G_BAND_4(channel))
 
+
+#define DACK_MSBK_BACKUP_NUM    0xf
+#define DACK_DCK_BACKUP_NUM     0x2
+
+#define CCK_FA_AVG_RESET 0xffffffff
+
+#define RTW8822B_EDCCA_MAX      0x7f
+#define RTW8822B_EDCCA_SRC_DEF  1
+#define REG_HTSTFWT     0x800
+#define REG_RXCCAMSK    0x814
+#define REG_L1WT        0x83c
+#define REG_L1PKWT      0x840
+#define REG_MRC         0x850
+#define REG_EDCCA_POW_MA        0x8a0
+#define BIT_MA_LEVEL    GENMASK(1, 0)
+#define REG_ADC40       0x8c8
+#define REG_EDCCA_DECISION      0x8dc
+#define BIT_EDCCA_OPTION        BIT(5)
+#define REG_CDDTXP      0x93c
+#define REG_TXPSEL1     0x940
+#define REG_EDCCA_SOURCE        0x944
+#define BIT_SOURCE_OPTION       GENMASK(29, 28)
+#define REG_ACBB0       0x948
+#define REG_ACBBRXFIR   0x94c
+#define REG_ACGG2TBL    0x958
+#define REG_ADCINI      0xa04
+#define REG_TXSF2       0xa24
+#define REG_TXSF6       0xa28
+#define REG_RXDESC      0xa2c
+#define REG_ENTXCCK     0xa80
+#define REG_AGCTR_A     0xc08
+#define REG_TXDFIR      0xc20
+#define REG_TRSW        0xca0
+#define REG_RFESEL0     0xcb0
+#define REG_RFESEL8     0xcb4
+#define REG_RFECTL      0xcb8
+#define REG_RFEINV      0xcbc
+#define REG_AGCTR_B     0xe08
+#define REG_ANTWT       0x1904
+#define REG_IQKFAILMSK  0x1bf0
+
+#define MASKBYTE0               0xff
+#define MASKBYTE1               0xff00
+#define MASKBYTE2               0xff0000
+#define MASKBYTE3               0xff000000
+#define MASKHWORD               0xffff0000
+#define MASKLWORD               0x0000ffff
+#define MASKDWORD               0xffffffff
+#define RFREG_MASK              0xfffff
+
+
+#define EDCCA_TH_L2H_IDX 0
+#define EDCCA_TH_H2L_IDX 1
+#define EDCCA_TH_L2H_LB 48
+#define EDCCA_ADC_BACKOFF 12
+#define EDCCA_IGI_BASE 50
+#define EDCCA_IGI_L2H_DIFF 8
+#define EDCCA_L2H_H2L_DIFF 7
+#define EDCCA_L2H_H2L_DIFF_NORMAL 8
 
 
 // {{{ phy crap
@@ -23033,6 +23094,20 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+enum rtw_phy_cck_pd_lv {
+        CCK_PD_LV0,
+        CCK_PD_LV1,
+        CCK_PD_LV2,
+        CCK_PD_LV3,
+        CCK_PD_LV4,
+        CCK_PD_LV_MAX,
+};
+
+struct rtw_hw_reg {
+        u32 addr;
+        u32 mask;
+};
+
 
 enum rtw_chip_ver {
         RTW_CHIP_VER_CUT_A = 0x00,
@@ -23640,7 +23715,7 @@ struct rtw_chip_ops {
 //                              struct ieee80211_bss_conf *conf);
 //        void (*cfg_csi_rate)(struct rtw_dev *rtwdev, u8 rssi, u8 cur_rate,
 //                             u8 fixrate_en, u8 *new_rate);
-//        void (*adaptivity_init)(struct rtw_dev *rtwdev);
+	void (*adaptivity_init)(struct rtw_dev *rtwdev);
 //        void (*adaptivity)(struct rtw_dev *rtwdev);
 //        void (*cfo_init)(struct rtw_dev *rtwdev);
 //        void (*cfo_track)(struct rtw_dev *rtwdev);
@@ -23700,7 +23775,7 @@ struct rtw88_chip_info {
 //	uint16_t fw_fifo_addr[RTW_FW_FIFO_MAX];
 //	const struct rtw_fwcd_segs *fwcd_segs;
 //
-//	uint8_t default_1ss_tx_path;
+	uint8_t default_1ss_tx_path;
 //
 //	bool path_div_supported;
 //	bool ht_supported;
@@ -23716,7 +23791,7 @@ struct rtw88_chip_info {
 	const struct rtw_page_table *page_table;
 //	const struct rtw_intf_phy_para_table *intf_table;
 //
-//	const struct rtw_hw_reg *dig;
+	const struct rtw_hw_reg *dig;
 //	const struct rtw_hw_reg *dig_cck;
 	uint32_t rf_base_addr[2];
 	uint32_t rf_sipi_addr[2];
@@ -23742,7 +23817,7 @@ struct rtw88_chip_info {
 //	uint8_t bfer_su_max_num;
 //	uint8_t bfer_mu_max_num;
 //
-//	struct rtw_hw_reg_offset *edcca_th;
+	const struct rtw_hw_reg_offset *edcca_th;
 //	s8 l2h_th_ini_cs;
 //	s8 l2h_th_ini_ad;
 //
@@ -24231,6 +24306,7 @@ u32 rtw_phy_read_rf(struct rtw_dev *rtwdev, enum rtw_rf_path rf_path,
                     u32 addr, u32 mask);
 bool rtw_phy_write_rf_reg_sipi(struct rtw_dev *rtwdev, enum rtw_rf_path rf_path,
                                u32 addr, u32 mask, u32 data);
+static void rtw8822b_adaptivity_init(struct rtw_dev *rtwdev);
 
 
 struct rtw_rfe_def {
@@ -24426,7 +24502,7 @@ static const struct rtw_chip_ops rtw8822b_ops = {
 //        .config_bfee            = rtw8822b_bf_config_bfee,
 //        .set_gid_table          = rtw_bf_set_gid_table,
 //        .cfg_csi_rate           = rtw_bf_cfg_csi_rate,
-//        .adaptivity_init        = rtw8822b_adaptivity_init,
+	.adaptivity_init        = rtw8822b_adaptivity_init,
 //        .adaptivity             = rtw8822b_adaptivity,
 //        .fill_txdesc_checksum   = rtw8822b_fill_txdesc_checksum,
 //
@@ -24438,6 +24514,17 @@ static const struct rtw_chip_ops rtw8822b_ops = {
 //        .coex_set_wl_tx_power   = rtw8822b_coex_cfg_wl_tx_power,
 //        .coex_set_wl_rx_gain    = rtw8822b_coex_cfg_wl_rx_gain,
 };
+
+struct rtw_hw_reg_offset {
+        struct rtw_hw_reg hw_reg;
+        u8 offset;
+};
+
+static const struct rtw_hw_reg_offset rtw8822b_edcca_th[] = {
+        [EDCCA_TH_L2H_IDX] = {{.addr = 0x8a4, .mask = MASKBYTE0}, .offset = 0},
+        [EDCCA_TH_H2L_IDX] = {{.addr = 0x8a4, .mask = MASKBYTE1}, .offset = 0},
+};
+
 
 const struct rtw88_chip_info rtw8822b_hw_spec = {
 	.ops = &rtw8822b_ops,
@@ -24491,7 +24578,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 //	.bfer_su_max_num = 2,
 //	.bfer_mu_max_num = 1,
 //	.rx_ldpc = true,
-//	.edcca_th = rtw8822b_edcca_th,
+	.edcca_th = rtw8822b_edcca_th,
 //	.l2h_th_ini_cs = 10 + EDCCA_IGI_BASE,
 //	.l2h_th_ini_ad = -14 + EDCCA_IGI_BASE,
 //	.ampdu_density = IEEE80211_HT_MPDU_DENSITY_2,
@@ -24551,6 +24638,15 @@ enum rtw_bb_path {
 
 	BB_PATH_ABCD = (BB_PATH_A | BB_PATH_B | BB_PATH_C | BB_PATH_D),
 };
+
+struct rtw_path_div {
+        enum rtw_bb_path current_tx_path;
+        u32 path_a_sum;
+        u32 path_b_sum;
+        u16 path_a_cnt;
+        u16 path_b_cnt;
+};
+
 
 enum rtw_rf_type {
 	RF_1T1R			= 0,
@@ -24740,6 +24836,152 @@ struct rtw_fw_state {
 	size_t fwsize;
 };
 
+struct rtw_pkt_count {
+        u16 num_bcn_pkt;
+        u16 num_qry_pkt[DESC_RATE_MAX];
+};
+
+
+struct rtw_iqk_info {
+        bool done;
+        struct {
+                u32 s1_x;
+                u32 s1_y;
+                u32 s0_x;
+                u32 s0_y;
+        } result;
+};
+
+enum rtw_rf_band {
+        RF_BAND_2G_CCK,
+        RF_BAND_2G_OFDM,
+        RF_BAND_5G_L,
+        RF_BAND_5G_M,
+        RF_BAND_5G_H,
+        RF_BAND_MAX
+};
+
+
+#define RF_GAIN_NUM 11
+#define RF_HW_OFFSET_NUM 10
+
+struct rtw_gapk_info {
+        u32 rf3f_bp[RF_BAND_MAX][RF_GAIN_NUM][RTW_RF_PATH_MAX];
+        u32 rf3f_fs[RTW_RF_PATH_MAX][RF_GAIN_NUM];
+        bool txgapk_bp_done;
+        s8 offset[RF_GAIN_NUM][RTW_RF_PATH_MAX];
+        s8 fianl_offset[RF_GAIN_NUM][RTW_RF_PATH_MAX];
+        u8 read_txgain;
+        u8 channel;
+};
+
+enum rtw_edcca_mode {
+        RTW_EDCCA_NORMAL        = 0,
+        RTW_EDCCA_ADAPTIVITY    = 1,
+};
+
+struct rtw_dm_info {
+        u32 cck_fa_cnt;
+        u32 ofdm_fa_cnt;
+        u32 total_fa_cnt;
+        u32 cck_cca_cnt;
+        u32 ofdm_cca_cnt;
+        u32 total_cca_cnt;
+
+        u32 cck_ok_cnt;
+        u32 cck_err_cnt;
+        u32 ofdm_ok_cnt;
+        u32 ofdm_err_cnt;
+        u32 ht_ok_cnt;
+        u32 ht_err_cnt;
+        u32 vht_ok_cnt;
+        u32 vht_err_cnt;
+
+        u8 min_rssi;
+        u8 pre_min_rssi;
+        u16 fa_history[4];
+        u8 igi_history[4];
+        u8 igi_bitmap;
+        bool damping;
+        u8 damping_cnt;
+        u8 damping_rssi;
+
+        u8 cck_gi_u_bnd;
+        u8 cck_gi_l_bnd;
+
+        u8 fix_rate;
+        u8 tx_rate;
+        u32 rrsr_val_init;
+        u32 rrsr_mask_min;
+        u8 thermal_avg[RTW_RF_PATH_MAX];
+        u8 thermal_meter_k;
+        u8 thermal_meter_lck;
+        s8 delta_power_index[RTW_RF_PATH_MAX];
+        s8 delta_power_index_last[RTW_RF_PATH_MAX];
+        u8 default_ofdm_index;
+        u8 default_cck_index;
+        bool pwr_trk_triggered;
+        bool pwr_trk_init_trigger;
+//        struct ewma_thermal avg_thermal[RTW_RF_PATH_MAX];
+        s8 txagc_remnant_cck;
+        s8 txagc_remnant_ofdm[RTW_RF_PATH_MAX];
+        u8 rx_cck_agc_report_type;
+
+        /* backup dack results for each path and I/Q */
+        u32 dack_adck[RTW_RF_PATH_MAX];
+        u16 dack_msbk[RTW_RF_PATH_MAX][2][DACK_MSBK_BACKUP_NUM];
+        u8 dack_dck[RTW_RF_PATH_MAX][2][DACK_DCK_BACKUP_NUM];
+
+        struct rtw_dpk_info dpk_info;
+//        struct rtw_cfo_track cfo_track;
+
+        /* [bandwidth 0:20M/1:40M][number of path] */
+        u8 cck_pd_lv[2][RTW_RF_PATH_MAX];
+        u32 cck_fa_avg;
+        u8 cck_pd_default;
+
+        /* save the last rx phy status for debug */
+        s8 rx_snr[RTW_RF_PATH_MAX];
+        u8 rx_evm_dbm[RTW_RF_PATH_MAX];
+        s16 cfo_tail[RTW_RF_PATH_MAX];
+        u8 rssi[RTW_RF_PATH_MAX];
+        u8 curr_rx_rate;
+        struct rtw_pkt_count cur_pkt_count;
+        struct rtw_pkt_count last_pkt_count;
+//        struct ewma_evm ewma_evm[RTW_EVM_NUM];
+//        struct ewma_snr ewma_snr[RTW_SNR_NUM];
+
+        u32 dm_flags; /* enum rtw_dm_cap */
+        struct rtw_iqk_info iqk;
+        struct rtw_gapk_info gapk;
+        bool is_bt_iqk_timeout;
+
+        s8 l2h_th_ini;
+        enum rtw_edcca_mode edcca_mode;
+        u8 scan_density;
+};
+
+struct rtw_regulatory {
+        char alpha2[2];
+        u8 txpwr_regd_2g;
+        u8 txpwr_regd_5g;
+};
+
+enum rtw_regd_state {
+        RTW_REGD_STATE_WORLDWIDE,
+        RTW_REGD_STATE_PROGRAMMED,
+        RTW_REGD_STATE_SETTING,
+
+        RTW_REGD_STATE_NR,
+};
+
+
+struct rtw_regd {
+        enum rtw_regd_state state;
+        const struct rtw_regulatory *regulatory;
+//        enum nl80211_dfs_regions dfs_region;
+};
+
 
 struct rtw_dev {
 //	struct ieee80211_hw *hw;
@@ -24756,10 +24998,10 @@ struct rtw_dev {
 	struct rtw88_efuse efuse;
 //	struct rtw_sec_desc sec;
 //	struct rtw_traffic_stats stats;
-//	struct rtw_regd regd;
+	struct rtw_regd regd;
 //	struct rtw_bf_info bf_info;
 //
-//	struct rtw_dm_info dm_info;
+	struct rtw_dm_info dm_info;
 //	struct rtw_coex coex;
 //
 //	/* ensures exclusive access from mac80211 callbacks */
@@ -24811,7 +25053,7 @@ struct rtw_dev {
 	unsigned long flags;
 //
 	uint8_t mp_mode;
-//	struct rtw_path_div dm_path_div;
+	struct rtw_path_div dm_path_div;
 //
 //	struct rtw_fw_state wow_fw;
 //	struct rtw_wow_param wow;
@@ -27332,6 +27574,35 @@ static inline void rtw_chip_efuse_grant_off(struct rtw_dev *rtwdev)
 //                rtwdev->chip->ops->efuse_grant(rtwdev, false);
 }
 
+void rtw_phy_set_edcca_th(struct rtw_dev *rtwdev, u8 l2h, u8 h2l)
+{
+        const struct rtw_hw_reg_offset *edcca_th = rtwdev->chip->edcca_th;
+
+        rtw_write32_mask(rtwdev,
+                         edcca_th[EDCCA_TH_L2H_IDX].hw_reg.addr,
+                         edcca_th[EDCCA_TH_L2H_IDX].hw_reg.mask,
+                         l2h + edcca_th[EDCCA_TH_L2H_IDX].offset);
+        rtw_write32_mask(rtwdev,
+                         edcca_th[EDCCA_TH_H2L_IDX].hw_reg.addr,
+                         edcca_th[EDCCA_TH_H2L_IDX].hw_reg.mask,
+                         h2l + edcca_th[EDCCA_TH_H2L_IDX].offset);
+}
+
+static void rtw8822b_adaptivity_init(struct rtw_dev *rtwdev)
+{
+        rtw_phy_set_edcca_th(rtwdev, RTW8822B_EDCCA_MAX, RTW8822B_EDCCA_MAX);
+
+        /* mac edcca state setting */
+        rtw_write32_clr(rtwdev, REG_TX_PTCL_CTRL, BIT_DIS_EDCCA);
+        rtw_write32_set(rtwdev, REG_RD_CTRL, BIT_EDCCA_MSK_CNTDOWN_EN);
+        rtw_write32_mask(rtwdev, REG_EDCCA_SOURCE, BIT_SOURCE_OPTION,
+                         RTW8822B_EDCCA_SRC_DEF);
+        rtw_write32_mask(rtwdev, REG_EDCCA_POW_MA, BIT_MA_LEVEL, 0);
+
+        /* edcca decision opt */
+        rtw_write32_set(rtwdev, REG_EDCCA_DECISION, BIT_EDCCA_OPTION);
+}
+
 static void rtw8822b_cfg_ldo25(struct rtw_dev *rtwdev, bool enable)
 {
         u8 ldo_pwr;
@@ -28269,7 +28540,7 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 //
 //        rtwdev->sec.total_cam_num = 32;
 	rtwdev->hal.current_channel = 1;
-//        rtwdev->dm_info.fix_rate = U8_MAX;
+	rtwdev->dm_info.fix_rate = U8_MAX;
 //
 //        rtw_stats_init(rtwdev);
 //
@@ -28302,54 +28573,10 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 
 // {{{ rtw8822b_rfe_info
 
-#define MASKBYTE0               0xff
-#define MASKBYTE1               0xff00
-#define MASKBYTE2               0xff0000
-#define MASKBYTE3               0xff000000
-#define MASKHWORD               0xffff0000
-#define MASKLWORD               0x0000ffff
-#define MASKDWORD               0xffffffff
-#define RFREG_MASK              0xfffff
-
-
 #define REG_RXPSEL              0x0808
 #define REG_RXIGI_A             0x0c50
 #define REG_RXIGI_B             0x0e50
 
-#define RTW8822B_EDCCA_MAX      0x7f
-#define RTW8822B_EDCCA_SRC_DEF  1
-#define REG_HTSTFWT     0x800
-#define REG_RXCCAMSK    0x814
-#define REG_L1WT        0x83c
-#define REG_L1PKWT      0x840
-#define REG_MRC         0x850
-#define REG_EDCCA_POW_MA        0x8a0
-#define BIT_MA_LEVEL    GENMASK(1, 0)
-#define REG_ADC40       0x8c8
-#define REG_EDCCA_DECISION      0x8dc
-#define BIT_EDCCA_OPTION        BIT(5)
-#define REG_CDDTXP      0x93c
-#define REG_TXPSEL1     0x940
-#define REG_EDCCA_SOURCE        0x944
-#define BIT_SOURCE_OPTION       GENMASK(29, 28)
-#define REG_ACBB0       0x948
-#define REG_ACBBRXFIR   0x94c
-#define REG_ACGG2TBL    0x958
-#define REG_ADCINI      0xa04
-#define REG_TXSF2       0xa24
-#define REG_TXSF6       0xa28
-#define REG_RXDESC      0xa2c
-#define REG_ENTXCCK     0xa80
-#define REG_AGCTR_A     0xc08
-#define REG_TXDFIR      0xc20
-#define REG_TRSW        0xca0
-#define REG_RFESEL0     0xcb0
-#define REG_RFESEL8     0xcb4
-#define REG_RFECTL      0xcb8
-#define REG_RFEINV      0xcbc
-#define REG_AGCTR_B     0xe08
-#define REG_ANTWT       0x1904
-#define REG_IQKFAILMSK  0x1bf0
 
 static void rtw8822b_toggle_igi(struct rtw_dev *rtwdev)
 {
@@ -28513,6 +28740,107 @@ static const struct rtw8822b_rfe_info rtw8822b_rfe_info[] = {
 // }}}
 
 // {{{ power_on
+
+static void rtw_phy_tx_path_div_init(struct rtw_dev *rtwdev)
+{
+        struct rtw_path_div *path_div = &rtwdev->dm_path_div;
+
+        path_div->current_tx_path = rtwdev->chip->default_1ss_tx_path;
+        path_div->path_a_cnt = 0;
+        path_div->path_a_sum = 0;
+        path_div->path_b_cnt = 0;
+        path_div->path_b_sum = 0;
+}
+
+/* EDCCA is enabled during normal behavior. For debugging purpose in
+ * a noisy environment, it can be disabled via edcca debugfs. Because
+ * all rtw88 devices will probably be affected if environment is noisy,
+ * rtw_edcca_enabled is just declared by driver instead of by device.
+ * So, turning it off will take effect for all rtw88 devices before
+ * there is a tough reason to maintain rtw_edcca_enabled by device.
+ */
+bool rtw_edcca_enabled = true;
+
+void rtw_phy_adaptivity_set_mode(struct rtw_dev *rtwdev)
+{
+//        const struct rtw_chip_info *chip = rtwdev->chip;
+        struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+
+        /* turn off in debugfs for debug usage */
+        if (!rtw_edcca_enabled) {
+                dm_info->edcca_mode = RTW_EDCCA_NORMAL;
+                printf("%s: EDCCA disabled, cannot be set\n", __func__);
+                return;
+        }
+
+        // XXX: just use normal because of linuxisum
+//        switch (rtwdev->regd.dfs_region) {
+//        case NL80211_DFS_ETSI:
+//                dm_info->edcca_mode = RTW_EDCCA_ADAPTIVITY;
+//                dm_info->l2h_th_ini = chip->l2h_th_ini_ad;
+//                break;
+//        case NL80211_DFS_JP:
+//                dm_info->edcca_mode = RTW_EDCCA_ADAPTIVITY;
+//                dm_info->l2h_th_ini = chip->l2h_th_ini_cs;
+//                break;
+//        default:
+	dm_info->edcca_mode = RTW_EDCCA_NORMAL;
+//                break;
+//        }
+}
+
+static void rtw_phy_adaptivity_init(struct rtw_dev *rtwdev)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+
+        rtw_phy_adaptivity_set_mode(rtwdev);
+	if (chip->ops->adaptivity_init)
+		chip->ops->adaptivity_init(rtwdev);
+}
+
+static void rtw_phy_cck_pd_init(struct rtw_dev *rtwdev)
+{
+        struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+        u8 i, j;
+
+        for (i = 0; i <= RTW_CHANNEL_WIDTH_40; i++) {
+                for (j = 0; j < RTW_RF_PATH_MAX; j++)
+                        dm_info->cck_pd_lv[i][j] = CCK_PD_LV0;
+        }
+
+        dm_info->cck_fa_avg = CCK_FA_AVG_RESET;
+}
+
+
+// XXX: conflict with /usr/src/sys/dev/ic/rtw.c:4647
+static void rtw_phy_init(struct rtw_dev *rtwdev)
+{
+        const struct rtw_chip_info *chip = rtwdev->chip;
+        struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+        u32 addr, mask;
+
+        dm_info->fa_history[3] = 0;
+        dm_info->fa_history[2] = 0;
+        dm_info->fa_history[1] = 0;
+        dm_info->fa_history[0] = 0;
+        dm_info->igi_bitmap = 0;
+        dm_info->igi_history[3] = 0;
+        dm_info->igi_history[2] = 0;
+        dm_info->igi_history[1] = 0;
+
+        addr = chip->dig[0].addr;
+        mask = chip->dig[0].mask;
+        dm_info->igi_history[0] = rtw_read32_mask(rtwdev, addr, mask);
+	rtw_phy_cck_pd_init(rtwdev);
+//
+	dm_info->iqk.done = false;
+	rtw_phy_adaptivity_init(rtwdev);
+	// XXX: not such function for 8822b, only 8822c
+//        rtw_phy_cfo_init(rtwdev);
+	rtw_phy_tx_path_div_init(rtwdev);
+}
+
+
 #define REG_FPGA0_RFMOD         0x0800
 #define BIT_CCKEN               BIT(24)
 #define BIT_OFDMEN              BIT(25)
@@ -28948,7 +29276,7 @@ static void rtw8822b_phy_set_param(struct rtw_dev *rtwdev)
 	is_tx2_path = false;
 	rtw8822b_config_trx_mode(rtwdev, hal->antenna_tx, hal->antenna_rx,
 	    is_tx2_path);
-//        rtw_phy_init(rtwdev);
+	rtw_phy_init(rtwdev);
 //
 //        rtw8822b_phy_rfe_init(rtwdev);
 //        rtw8822b_pwrtrack_init(rtwdev);
