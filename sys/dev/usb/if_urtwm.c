@@ -30299,6 +30299,7 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 
 				set_bit(RTW_FLAG_RUNNING, rtwdev->flags);
 
+				ifp->if_flags |= IFF_RUNNING;
 
 			}
 		} else {
