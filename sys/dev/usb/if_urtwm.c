@@ -23148,6 +23148,20 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+enum rtw_fw_rf_type {
+        FW_RF_1T2R = 0,
+        FW_RF_2T4R = 1,
+        FW_RF_2T2R = 2,
+        FW_RF_2T3R = 3,
+        FW_RF_1T1R = 4,
+        FW_RF_2T2R_GREEN = 5,
+        FW_RF_3T3R = 6,
+        FW_RF_3T4R = 7,
+        FW_RF_4T4R = 8,
+        FW_RF_MAX_TYPE = 0xF,
+};
+
+
 enum rtw_phy_cck_pd_lv {
         CCK_PD_LV0,
         CCK_PD_LV1,
@@ -26314,6 +26328,137 @@ static inline void rtw_h2c_pkt_set_header(u8 *h2c_pkt, u8 sub_id)
 #define GENERAL_INFO_SET_FW_TX_BOUNDARY(h2c_pkt, value)                        \
         le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(23, 16))
 
+#define PHYDM_INFO_SET_REF_TYPE(h2c_pkt, value)                                \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(7, 0))
+#define PHYDM_INFO_SET_RF_TYPE(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(15, 8))
+#define PHYDM_INFO_SET_CUT_VER(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(23, 16))
+#define PHYDM_INFO_SET_RX_ANT_STATUS(h2c_pkt, value)                           \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(27, 24))
+#define PHYDM_INFO_SET_TX_ANT_STATUS(h2c_pkt, value)                           \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(31, 28))
+#define IQK_SET_CLEAR(h2c_pkt, value)                                          \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(0))
+#define IQK_SET_SEGMENT_IQK(h2c_pkt, value)                                    \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(1))
+
+#define CHSW_INFO_SET_CH(pkt, value)                                           \
+        le32p_replace_bits((__le32 *)(pkt) + 0x00, value, GENMASK(7, 0))
+#define CHSW_INFO_SET_PRI_CH_IDX(pkt, value)                                   \
+        le32p_replace_bits((__le32 *)(pkt) + 0x00, value, GENMASK(11, 8))
+#define CHSW_INFO_SET_BW(pkt, value)                                           \
+        le32p_replace_bits((__le32 *)(pkt) + 0x00, value, GENMASK(15, 12))
+#define CHSW_INFO_SET_TIMEOUT(pkt, value)                                      \
+        le32p_replace_bits((__le32 *)(pkt) + 0x00, value, GENMASK(23, 16))
+#define CHSW_INFO_SET_ACTION_ID(pkt, value)                                    \
+        le32p_replace_bits((__le32 *)(pkt) + 0x00, value, GENMASK(30, 24))
+#define CHSW_INFO_SET_EXTRA_INFO(pkt, value)                                   \
+        le32p_replace_bits((__le32 *)(pkt) + 0x00, value, BIT(31))
+
+#define CH_INFO_SET_CH(pkt, value)                                             \
+        u8p_replace_bits((u8 *)(pkt) + 0x00, value, GENMASK(7, 0))
+#define CH_INFO_SET_PRI_CH_IDX(pkt, value)                                     \
+        u8p_replace_bits((u8 *)(pkt) + 0x01, value, GENMASK(3, 0))
+#define CH_INFO_SET_BW(pkt, value)                                             \
+        u8p_replace_bits((u8 *)(pkt) + 0x01, value, GENMASK(7, 4))
+#define CH_INFO_SET_TIMEOUT(pkt, value)                                        \
+        u8p_replace_bits((u8 *)(pkt) + 0x02, value, GENMASK(7, 0))
+#define CH_INFO_SET_ACTION_ID(pkt, value)                                      \
+        u8p_replace_bits((u8 *)(pkt) + 0x03, value, GENMASK(6, 0))
+#define CH_INFO_SET_EXTRA_INFO(pkt, value)                                     \
+        u8p_replace_bits((u8 *)(pkt) + 0x03, value, BIT(7))
+
+#define EXTRA_CH_INFO_SET_ID(pkt, value)                                       \
+        u8p_replace_bits((u8 *)(pkt) + 0x04, value, GENMASK(6, 0))
+#define EXTRA_CH_INFO_SET_INFO(pkt, value)                                     \
+        u8p_replace_bits((u8 *)(pkt) + 0x04, value, BIT(7))
+#define EXTRA_CH_INFO_SET_SIZE(pkt, value)                                     \
+        u8p_replace_bits((u8 *)(pkt) + 0x05, value, GENMASK(7, 0))
+#define EXTRA_CH_INFO_SET_DFS_EXT_TIME(pkt, value)                             \
+        u8p_replace_bits((u8 *)(pkt) + 0x06, value, GENMASK(7, 0))
+
+#define UPDATE_PKT_SET_SIZE(h2c_pkt, value)                                    \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(15, 0))
+#define UPDATE_PKT_SET_PKT_ID(h2c_pkt, value)                                  \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(23, 16))
+#define UPDATE_PKT_SET_LOCATION(h2c_pkt, value)                                \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(31, 24))
+
+#define CH_SWITCH_SET_START(h2c_pkt, value)                                    \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(0))
+#define CH_SWITCH_SET_DEST_CH_EN(h2c_pkt, value)                               \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(1))
+#define CH_SWITCH_SET_ABSOLUTE_TIME(h2c_pkt, value)                            \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(2))
+#define CH_SWITCH_SET_PERIODIC_OPT(h2c_pkt, value)                             \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(4, 3))
+#define CH_SWITCH_SET_SCAN_MODE(h2c_pkt, value)                                \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(5))
+#define CH_SWITCH_SET_BACK_OP_EN(h2c_pkt, value)                               \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(6))
+#define CH_SWITCH_SET_INFO_LOC(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(15, 8))
+#define CH_SWITCH_SET_CH_NUM(h2c_pkt, value)                                   \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(23, 16))
+#define CH_SWITCH_SET_PRI_CH_IDX(h2c_pkt, value)                               \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(27, 24))
+#define CH_SWITCH_SET_DEST_BW(h2c_pkt, value)                                  \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(31, 28))
+#define CH_SWITCH_SET_DEST_CH(h2c_pkt, value)                                  \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(7, 0))
+#define CH_SWITCH_SET_NORMAL_PERIOD(h2c_pkt, value)                            \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(13, 8))
+#define CH_SWITCH_SET_NORMAL_PERIOD_SEL(h2c_pkt, value)                        \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(15, 14))
+#define CH_SWITCH_SET_SLOW_PERIOD(h2c_pkt, value)                              \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(21, 16))
+#define CH_SWITCH_SET_SLOW_PERIOD_SEL(h2c_pkt, value)                          \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(23, 22))
+#define CH_SWITCH_SET_NORMAL_CYCLE(h2c_pkt, value)                             \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(31, 24))
+#define CH_SWITCH_SET_TSF_HIGH(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x04, value, GENMASK(31, 0))
+#define CH_SWITCH_SET_TSF_LOW(h2c_pkt, value)                                  \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x05, value, GENMASK(31, 0))
+#define CH_SWITCH_SET_INFO_SIZE(h2c_pkt, value)                                \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x06, value, GENMASK(15, 0))
+
+#define SCAN_OFFLOAD_SET_START(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(0))
+#define SCAN_OFFLOAD_SET_BACK_OP_EN(h2c_pkt, value)                            \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(1))
+#define SCAN_OFFLOAD_SET_RANDOM_SEQ_EN(h2c_pkt, value)                         \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(2))
+#define SCAN_OFFLOAD_SET_NO_CCK_EN(h2c_pkt, value)                             \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(3))
+#define SCAN_OFFLOAD_SET_VERBOSE(h2c_pkt, value)                               \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, BIT(4))
+#define SCAN_OFFLOAD_SET_CH_NUM(h2c_pkt, value)                                \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(15, 8))
+#define SCAN_OFFLOAD_SET_CH_INFO_SIZE(h2c_pkt, value)                          \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x02, value, GENMASK(31, 16))
+#define SCAN_OFFLOAD_SET_CH_INFO_LOC(h2c_pkt, value)                           \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(7, 0))
+#define SCAN_OFFLOAD_SET_OP_CH(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(15, 8))
+#define SCAN_OFFLOAD_SET_OP_PRI_CH_IDX(h2c_pkt, value)                         \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(19, 16))
+#define SCAN_OFFLOAD_SET_OP_BW(h2c_pkt, value)                                 \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(23, 20))
+#define SCAN_OFFLOAD_SET_OP_PORT_ID(h2c_pkt, value)                            \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x03, value, GENMASK(26, 24))
+#define SCAN_OFFLOAD_SET_OP_DWELL_TIME(h2c_pkt, value)                         \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x04, value, GENMASK(15, 0))
+#define SCAN_OFFLOAD_SET_OP_GAP_TIME(h2c_pkt, value)                           \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x04, value, GENMASK(31, 16))
+#define SCAN_OFFLOAD_SET_MODE(h2c_pkt, value)                                  \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x05, value, GENMASK(3, 0))
+#define SCAN_OFFLOAD_SET_SSID_NUM(h2c_pkt, value)                              \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x05, value, GENMASK(7, 4))
+#define SCAN_OFFLOAD_SET_PKT_LOC(h2c_pkt, value)                               \
+        le32p_replace_bits((__le32 *)(h2c_pkt) + 0x05, value, GENMASK(15, 8))
+
 
 #define H2C_PKT_SIZE            32
 #define H2C_PKT_HDR_SIZE        8
@@ -28876,6 +29021,35 @@ static const struct rtw8822b_rfe_info rtw8822b_rfe_info[] = {
 // {{{ power_on
 
 void
+rtw_fw_send_phydm_info(struct rtw_dev *rtwdev)
+{
+        struct rtw_hal *hal = &rtwdev->hal;
+        struct rtw_efuse *efuse = &rtwdev->efuse;
+        u8 h2c_pkt[H2C_PKT_SIZE] = {0};
+        u16 total_size = H2C_PKT_HDR_SIZE + 8;
+        u8 fw_rf_type = 0;
+
+        if (rtw_chip_wcpu_11n(rtwdev))
+                return;
+
+        if (hal->rf_type == RF_1T1R)
+                fw_rf_type = FW_RF_1T1R;
+        else if (hal->rf_type == RF_2T2R)
+                fw_rf_type = FW_RF_2T2R;
+
+        rtw_h2c_pkt_set_header(h2c_pkt, H2C_PKT_PHYDM_INFO);
+
+        SET_PKT_H2C_TOTAL_LEN(h2c_pkt, total_size);
+        PHYDM_INFO_SET_REF_TYPE(h2c_pkt, efuse->rfe_option);
+        PHYDM_INFO_SET_RF_TYPE(h2c_pkt, fw_rf_type);
+        PHYDM_INFO_SET_CUT_VER(h2c_pkt, hal->cut_version);
+        PHYDM_INFO_SET_RX_ANT_STATUS(h2c_pkt, hal->antenna_tx);
+        PHYDM_INFO_SET_TX_ANT_STATUS(h2c_pkt, hal->antenna_rx);
+
+        rtw_fw_send_h2c_packet(rtwdev, h2c_pkt);
+}
+
+void
 rtw_fw_send_general_info(struct rtw_dev *rtwdev)
 {
         struct rtw_fifo_conf *fifo = &rtwdev->fifo;
@@ -29952,9 +30126,9 @@ int rtw_power_on(struct rtw_dev *rtwdev)
 //
 	/* send H2C after HCI has started */
 	rtw_fw_send_general_info(rtwdev);
-//        rtw_fw_send_phydm_info(rtwdev);
+	rtw_fw_send_phydm_info(rtwdev);
 //
-//        wifi_only = !rtwdev->efuse.btcoex;
+//	wifi_only = !rtwdev->efuse.btcoex;
 //        rtw_coex_power_on_setting(rtwdev);
 //        rtw_coex_init_hw_config(rtwdev, wifi_only);
 //
