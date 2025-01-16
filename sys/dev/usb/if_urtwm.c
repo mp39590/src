@@ -393,6 +393,19 @@ DECLARE_EWMA(thermal, 10, 4);
 
 #define H2C_CMD_RECOVER_BT_DEV          0xD1
 
+#define RTW_CHANNEL_TIME                45
+#define RTW_OFF_CHAN_TIME               100
+#define RTW_PASS_CHAN_TIME              105
+#define RTW_DFS_CHAN_TIME               20
+#define RTW_CH_INFO_SIZE                4
+#define RTW_EX_CH_INFO_SIZE             3
+#define RTW_EX_CH_INFO_HDR_SIZE         2
+#define RTW_SCAN_WIDTH                  0
+#define RTW_PRI_CH_IDX                  1
+#define RTW_OLD_PROBE_PG_CNT            2
+#define RTW_PROBE_PG_CNT                4
+
+
 // {{{ phy crap
 
 enum rtw_phy_band_type {
@@ -23209,6 +23222,39 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+struct rtw_chan_list {
+        u32 buf_size;
+        u32 ch_num;
+        u32 size;
+        u16 addr;
+};
+
+struct rtw_ch_switch_option {
+        u8 periodic_option;
+        u32 tsf_high;
+        u32 tsf_low;
+        u8 dest_ch_en;
+        u8 absolute_time_en;
+        u8 dest_ch;
+        u8 normal_period;
+        u8 normal_period_sel;
+        u8 normal_cycle;
+        u8 slow_period;
+        u8 slow_period_sel;
+        u8 nlo_en;
+        bool switch_en;
+        bool back_op_en;
+};
+
+struct rtw_hw_scan_info {
+//        struct ieee80211_vif *scanning_vif;
+        u8 probe_pg_size;
+        u8 op_pri_ch_idx;
+        u8 op_pri_ch;
+        u8 op_chan;
+        u8 op_bw;
+};
+
 enum rtw_vif_port_set {
         PORT_SET_MAC_ADDR       = BIT(0),
         PORT_SET_BSSID          = BIT(1),
@@ -25259,7 +25305,7 @@ struct rtw_dev {
 	struct rtw88_hci hci;
 	void	*cookie;
 //
-//	struct rtw_hw_scan_info scan_info;
+	struct rtw_hw_scan_info scan_info;
 	const struct rtw88_chip_info *chip;
 	struct rtw88_hal hal;
 	struct rtw_fifo_conf fifo;
@@ -30450,6 +30496,70 @@ err:
 
 // {{{ hw scan
 
+//static int rtw_hw_scan_prehandle(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
+//                                 struct rtw_chan_list *list)
+static int rtw_hw_scan_prehandle(struct rtw_dev *rtwdev, struct rtw_chan_list *list)
+{
+//        struct cfg80211_scan_request *req = rtwvif->scan_req;
+//        int size = req->n_channels * (RTW_CH_INFO_SIZE + RTW_EX_CH_INFO_SIZE);
+	int size = 1 /* scan one channel */ * (RTW_CH_INFO_SIZE + RTW_EX_CH_INFO_SIZE);
+        u8 *buf;
+        int ret = 0;
+
+//        buf = kmalloc(size, GFP_KERNEL);
+	buf = malloc(size, M_DEVBUF, M_NOWAIT);
+        if (!buf)
+                return -ENOMEM;
+
+//        ret = rtw_hw_scan_update_probe_req(rtwdev/*, rtwvif*/);
+//        if (ret) {
+//                rtw_err(rtwdev, "Update probe request failed\n");
+//                goto out;
+//        }
+//
+//        list->buf_size = size;
+//        list->size = 0;
+//        list->ch_num = 0;
+//        ret = rtw_add_chan_list(rtwdev, rtwvif, list, buf);
+//out:
+//        kfree(buf);
+//
+        return ret;
+}
+
+//int rtw_hw_scan_offload(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
+//                        bool enable)
+int rtw_hw_scan_offload(struct rtw_dev *rtwdev, bool enable)
+{
+//        struct rtw_vif *rtwvif = vif ? (struct rtw_vif *)vif->drv_priv : NULL;
+        struct rtw_hw_scan_info *scan_info = &rtwdev->scan_info;
+        struct rtw_ch_switch_option cs_option = {0};
+        struct rtw_chan_list chan_list = {0};
+        int ret = 0;
+
+//        if (!rtwvif)
+//                return -EINVAL;
+
+        cs_option.switch_en = enable;
+        cs_option.back_op_en = scan_info->op_chan != 0;
+        printf("%s: cs_option.back_op_en=%i\n", __func__, cs_option.back_op_en);
+        if (enable) {
+                ret = rtw_hw_scan_prehandle(rtwdev, /*rtwvif,*/ &chan_list);
+//                if (ret)
+//                        goto out;
+        }
+//        rtw_fw_set_scan_offload(rtwdev, &cs_option, rtwvif, &chan_list);
+//out:
+//        if (rtwdev->ap_active) {
+//                ret = rtw_download_beacon(rtwdev);
+//                if (ret)
+//                        rtw_err(rtwdev, "HW scan download beacon failed\n");
+//        }
+
+        return ret;
+}
+
+
 void rtw_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
 {
         u8 h2c_pkt[H2C_PKT_SIZE] = {0};
@@ -30549,10 +30659,13 @@ void rtw_hw_scan_start(struct rtw_dev *rtwdev)
 
 	IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
 
+        // XXX: rtw_hw_scan_start(), not evertyhing (no queue flush for example)
         rtw_core_scan_start(rtwdev, mac_addr, true);
-
         rtwdev->hal.rcr &= ~BIT_CBSSID_BCN;
         rtw_write32(rtwdev, REG_RCR, rtwdev->hal.rcr);
+
+	rtw_hw_scan_offload(rtwdev, /*struct ieee80211_vif *vif*/ true);
+
 }
 
 //static int rtw_ops_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
