@@ -27527,65 +27527,65 @@ timevaladd(struct timeval *t1, const struct timeval *t2)
 #define REG_HMEBOX3_EX          0x01FC
 
 
-static void rtw_fw_send_h2c_command(struct rtw_dev *rtwdev,
-                                    u8 *h2c)
-{
-        struct rtw_h2c_cmd *h2c_cmd = (struct rtw_h2c_cmd *)h2c;
-        u8 box;
-        u8 box_state;
-        u32 box_reg, box_ex_reg;
-        int ret;
-
-//        rtw_dbg(rtwdev, RTW_DBG_FW,
-//                "send H2C content %02x%02x%02x%02x %02x%02x%02x%02x\n",
-//                h2c[3], h2c[2], h2c[1], h2c[0],
-//                h2c[7], h2c[6], h2c[5], h2c[4]);
-//	printf("%s: send H2C content %02x%02x%02x%02x %02x%02x%02x%02x\n",
-//	    h2c[3], h2c[2], h2c[1], h2c[0],
-//	    h2c[7], h2c[6], h2c[5], h2c[4]);
-
-//        lockdep_assert_held(&rtwdev->mutex);
-
-        box = rtwdev->h2c.last_box_num;
-        printf("%s: box=%d\n", __func__, box);
-        switch (box) {
-        case 0:
-                box_reg = REG_HMEBOX0;
-                box_ex_reg = REG_HMEBOX0_EX;
-                break;
-        case 1:
-                box_reg = REG_HMEBOX1;
-                box_ex_reg = REG_HMEBOX1_EX;
-                break;
-        case 2:
-                box_reg = REG_HMEBOX2;
-                box_ex_reg = REG_HMEBOX2_EX;
-                break;
-        case 3:
-                box_reg = REG_HMEBOX3;
-                box_ex_reg = REG_HMEBOX3_EX;
-                break;
-        default:
-                printf("%s: invalid h2c mail box number\n", __func__);
-                return;
-        }
-
-        ret = read_poll_timeout_atomic(rtw_read8, box_state,
-                                       !((box_state >> box) & 0x1), 100, 3000,
-                                       false, rtwdev, REG_HMETFR);
-
-	printf("%s: box_state=0x%x\n", __func__, box_state);
-        if (ret) {
-                printf("%s: failed to send h2c command\n", __func__);
-                return;
-        }
-
-        rtw_write32(rtwdev, box_ex_reg, le32_to_cpu(h2c_cmd->msg_ext));
-        rtw_write32(rtwdev, box_reg, le32_to_cpu(h2c_cmd->msg));
-
-        if (++rtwdev->h2c.last_box_num >= 4)
-                rtwdev->h2c.last_box_num = 0;
-}
+//static void rtw_fw_send_h2c_command(struct rtw_dev *rtwdev,
+//                                    u8 *h2c)
+//{
+//        struct rtw_h2c_cmd *h2c_cmd = (struct rtw_h2c_cmd *)h2c;
+//        u8 box;
+//        u8 box_state;
+//        u32 box_reg, box_ex_reg;
+//        int ret;
+//
+////        rtw_dbg(rtwdev, RTW_DBG_FW,
+////                "send H2C content %02x%02x%02x%02x %02x%02x%02x%02x\n",
+////                h2c[3], h2c[2], h2c[1], h2c[0],
+////                h2c[7], h2c[6], h2c[5], h2c[4]);
+////	printf("%s: send H2C content %02x%02x%02x%02x %02x%02x%02x%02x\n",
+////	    h2c[3], h2c[2], h2c[1], h2c[0],
+////	    h2c[7], h2c[6], h2c[5], h2c[4]);
+//
+////        lockdep_assert_held(&rtwdev->mutex);
+//
+//        box = rtwdev->h2c.last_box_num;
+//        printf("%s: box=%d\n", __func__, box);
+//        switch (box) {
+//        case 0:
+//                box_reg = REG_HMEBOX0;
+//                box_ex_reg = REG_HMEBOX0_EX;
+//                break;
+//        case 1:
+//                box_reg = REG_HMEBOX1;
+//                box_ex_reg = REG_HMEBOX1_EX;
+//                break;
+//        case 2:
+//                box_reg = REG_HMEBOX2;
+//                box_ex_reg = REG_HMEBOX2_EX;
+//                break;
+//        case 3:
+//                box_reg = REG_HMEBOX3;
+//                box_ex_reg = REG_HMEBOX3_EX;
+//                break;
+//        default:
+//                printf("%s: invalid h2c mail box number\n", __func__);
+//                return;
+//        }
+//
+//        ret = read_poll_timeout_atomic(rtw_read8, box_state,
+//                                       !((box_state >> box) & 0x1), 100, 3000,
+//                                       false, rtwdev, REG_HMETFR);
+//
+//	printf("%s: box_state=0x%x\n", __func__, box_state);
+//        if (ret) {
+//                printf("%s: failed to send h2c command\n", __func__);
+//                return;
+//        }
+//
+//        rtw_write32(rtwdev, box_ex_reg, le32_to_cpu(h2c_cmd->msg_ext));
+//        rtw_write32(rtwdev, box_reg, le32_to_cpu(h2c_cmd->msg));
+//
+//        if (++rtwdev->h2c.last_box_num >= 4)
+//                rtwdev->h2c.last_box_num = 0;
+//}
 
 
 // --- end
@@ -30496,208 +30496,208 @@ err:
 
 // {{{ hw scan
 
-//static int rtw_hw_scan_prehandle(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
-//                                 struct rtw_chan_list *list)
-static int rtw_hw_scan_prehandle(struct rtw_dev *rtwdev, struct rtw_chan_list *list)
-{
-//        struct cfg80211_scan_request *req = rtwvif->scan_req;
-//        int size = req->n_channels * (RTW_CH_INFO_SIZE + RTW_EX_CH_INFO_SIZE);
-	int size = 1 /* scan one channel */ * (RTW_CH_INFO_SIZE + RTW_EX_CH_INFO_SIZE);
-        u8 *buf;
-        int ret = 0;
-
-//        buf = kmalloc(size, GFP_KERNEL);
-	buf = malloc(size, M_DEVBUF, M_NOWAIT);
-        if (!buf)
-                return -ENOMEM;
-
-//        ret = rtw_hw_scan_update_probe_req(rtwdev/*, rtwvif*/);
-//        if (ret) {
-//                rtw_err(rtwdev, "Update probe request failed\n");
-//                goto out;
-//        }
+////static int rtw_hw_scan_prehandle(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
+////                                 struct rtw_chan_list *list)
+//static int rtw_hw_scan_prehandle(struct rtw_dev *rtwdev, struct rtw_chan_list *list)
+//{
+////        struct cfg80211_scan_request *req = rtwvif->scan_req;
+////        int size = req->n_channels * (RTW_CH_INFO_SIZE + RTW_EX_CH_INFO_SIZE);
+//	int size = 1 /* scan one channel */ * (RTW_CH_INFO_SIZE + RTW_EX_CH_INFO_SIZE);
+//        u8 *buf;
+//        int ret = 0;
 //
-//        list->buf_size = size;
-//        list->size = 0;
-//        list->ch_num = 0;
-//        ret = rtw_add_chan_list(rtwdev, rtwvif, list, buf);
-//out:
-//        kfree(buf);
+////        buf = kmalloc(size, GFP_KERNEL);
+//	buf = malloc(size, M_DEVBUF, M_NOWAIT);
+//        if (!buf)
+//                return -ENOMEM;
 //
-        return ret;
-}
-
-//int rtw_hw_scan_offload(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
-//                        bool enable)
-int rtw_hw_scan_offload(struct rtw_dev *rtwdev, bool enable)
-{
-//        struct rtw_vif *rtwvif = vif ? (struct rtw_vif *)vif->drv_priv : NULL;
-        struct rtw_hw_scan_info *scan_info = &rtwdev->scan_info;
-        struct rtw_ch_switch_option cs_option = {0};
-        struct rtw_chan_list chan_list = {0};
-        int ret = 0;
-
-//        if (!rtwvif)
-//                return -EINVAL;
-
-        cs_option.switch_en = enable;
-        cs_option.back_op_en = scan_info->op_chan != 0;
-        printf("%s: cs_option.back_op_en=%i\n", __func__, cs_option.back_op_en);
-        if (enable) {
-                ret = rtw_hw_scan_prehandle(rtwdev, /*rtwvif,*/ &chan_list);
-//                if (ret)
-//                        goto out;
-        }
-//        rtw_fw_set_scan_offload(rtwdev, &cs_option, rtwvif, &chan_list);
-//out:
-//        if (rtwdev->ap_active) {
-//                ret = rtw_download_beacon(rtwdev);
-//                if (ret)
-//                        rtw_err(rtwdev, "HW scan download beacon failed\n");
+////        ret = rtw_hw_scan_update_probe_req(rtwdev/*, rtwvif*/);
+////        if (ret) {
+////                rtw_err(rtwdev, "Update probe request failed\n");
+////                goto out;
+////        }
+////
+////        list->buf_size = size;
+////        list->size = 0;
+////        list->ch_num = 0;
+////        ret = rtw_add_chan_list(rtwdev, rtwvif, list, buf);
+////out:
+////        kfree(buf);
+////
+//        return ret;
+//}
+//
+////int rtw_hw_scan_offload(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
+////                        bool enable)
+//int rtw_hw_scan_offload(struct rtw_dev *rtwdev, bool enable)
+//{
+////        struct rtw_vif *rtwvif = vif ? (struct rtw_vif *)vif->drv_priv : NULL;
+//        struct rtw_hw_scan_info *scan_info = &rtwdev->scan_info;
+//        struct rtw_ch_switch_option cs_option = {0};
+//        struct rtw_chan_list chan_list = {0};
+//        int ret = 0;
+//
+////        if (!rtwvif)
+////                return -EINVAL;
+//
+//        cs_option.switch_en = enable;
+//        cs_option.back_op_en = scan_info->op_chan != 0;
+//        printf("%s: cs_option.back_op_en=%i\n", __func__, cs_option.back_op_en);
+//        if (enable) {
+//                ret = rtw_hw_scan_prehandle(rtwdev, /*rtwvif,*/ &chan_list);
+////                if (ret)
+////                        goto out;
 //        }
-
-        return ret;
-}
-
-
-void rtw_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
-{
-        u8 h2c_pkt[H2C_PKT_SIZE] = {0};
-
-        SET_H2C_CMD_ID_CLASS(h2c_pkt, H2C_CMD_SCAN);
-        SET_SCAN_START(h2c_pkt, start);
-
-        rtw_fw_send_h2c_command(rtwdev, h2c_pkt);
-}
-
-void rtw_core_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
-{
-	// XXX feature check wasn't implemented yet
-//        if (!rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_NOTIFY_SCAN))
-//                return;
-
-        if (start) {
-                rtw_fw_scan_notify(rtwdev, true);
-        } else {
-		printf("%s: TODO\n", __func__);
-//                reinit_completion(&rtwdev->fw_scan_density);
-//                rtw_fw_scan_notify(rtwdev, false);
-//                if (!wait_for_completion_timeout(&rtwdev->fw_scan_density,
-//                                                 SCAN_NOTIFY_TIMEOUT))
-//                        rtw_warn(rtwdev, "firmware failed to report density after scan\n");
-        }
-}
-
-//static void rtw_vif_write_addr(struct rtw_dev *rtwdev, u32 start, u8 *addr)
+////        rtw_fw_set_scan_offload(rtwdev, &cs_option, rtwvif, &chan_list);
+////out:
+////        if (rtwdev->ap_active) {
+////                ret = rtw_download_beacon(rtwdev);
+////                if (ret)
+////                        rtw_err(rtwdev, "HW scan download beacon failed\n");
+////        }
+//
+//        return ret;
+//}
+//
+//
+//void rtw_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
+//{
+//        u8 h2c_pkt[H2C_PKT_SIZE] = {0};
+//
+//        SET_H2C_CMD_ID_CLASS(h2c_pkt, H2C_CMD_SCAN);
+//        SET_SCAN_START(h2c_pkt, start);
+//
+//        rtw_fw_send_h2c_command(rtwdev, h2c_pkt);
+//}
+//
+//void rtw_core_fw_scan_notify(struct rtw_dev *rtwdev, bool start)
+//{
+//	// XXX feature check wasn't implemented yet
+////        if (!rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_NOTIFY_SCAN))
+////                return;
+//
+//        if (start) {
+//                rtw_fw_scan_notify(rtwdev, true);
+//        } else {
+//		printf("%s: TODO\n", __func__);
+////                reinit_completion(&rtwdev->fw_scan_density);
+////                rtw_fw_scan_notify(rtwdev, false);
+////                if (!wait_for_completion_timeout(&rtwdev->fw_scan_density,
+////                                                 SCAN_NOTIFY_TIMEOUT))
+////                        rtw_warn(rtwdev, "firmware failed to report density after scan\n");
+//        }
+//}
+//
+////static void rtw_vif_write_addr(struct rtw_dev *rtwdev, u32 start, u8 *addr)
 static void rtw_vif_write_addr(struct rtw_dev *rtwdev, u32 start, const u8 *addr)
 {
-        int i;
+	int i;
 
-        for (i = 0; i < ETH_ALEN; i++)
-                rtw_write8(rtwdev, start + i, addr[i]);
+	for (i = 0; i < ETH_ALEN; i++)
+		rtw_write8(rtwdev, start + i, addr[i]);
 }
-
-
-//void rtw_core_scan_start(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
-//                         const u8 *mac_addr, bool hw_scan)
-void rtw_core_scan_start(struct rtw_dev *rtwdev, const u8 *mac_addr, bool hw_scan)
-{
-//        u32 config = 0;
+//
+//
+////void rtw_core_scan_start(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
+////                         const u8 *mac_addr, bool hw_scan)
+//void rtw_core_scan_start(struct rtw_dev *rtwdev, const u8 *mac_addr, bool hw_scan)
+//{
+////        u32 config = 0;
+////        int ret = 0;
+//
+//	// XXX: try without lps
+////        rtw_leave_lps(rtwdev);
+//
+////        if (hw_scan && (rtwdev->hw->conf.flags & IEEE80211_CONF_IDLE)) {
+////                ret = rtw_leave_ips(rtwdev);
+////                if (ret) {
+////                        rtw_err(rtwdev, "failed to leave idle state\n");
+////                        return;
+////                }
+////        }
+//
+////        ether_addr_copy(rtwvif->mac_addr, mac_addr);
+////        config |= PORT_SET_MAC_ADDR;
+////        rtw_vif_port_config(rtwdev, rtwvif, config);
+//	// XXX: shouldn't we do rtw_ops_add_interface() first?
+//	// XXX: writing to zero vif, hardcoded by misha
+//	rtw_vif_write_addr(rtwdev, rtw_vif_port[0].mac_addr.addr, mac_addr);
+//
+//	// XXX no coex
+////        rtw_coex_scan_notify(rtwdev, COEX_SCAN_START);
+//	rtw_core_fw_scan_notify(rtwdev, true);
+//
+//        set_bit(RTW_FLAG_DIG_DISABLE, rtwdev->flags);
+//        set_bit(RTW_FLAG_SCANNING, rtwdev->flags);
+//}
+//
+////void rtw_hw_scan_start(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
+////                       struct ieee80211_scan_request *scan_req)
+//void rtw_hw_scan_start(struct rtw_dev *rtwdev)
+//{
+////        struct rtw_vif *rtwvif = (struct rtw_vif *)vif->drv_priv;
+////        struct cfg80211_scan_request *req = &scan_req->req;
+//        u8 mac_addr[ETH_ALEN];
+//	struct urtwm_softc *sc = rtwdev->cookie;
+//	struct ieee80211com *ic = &sc->sc_ic;
+//
+////        rtwdev->scan_info.scanning_vif = vif;
+////        rtwvif->scan_ies = &scan_req->ies;
+////        rtwvif->scan_req = req;
+//
+////        ieee80211_stop_queues(rtwdev->hw);
+////        XXX no op for usb
+////        rtw_leave_lps_deep(rtwdev);
+//	// XXX: later
+////        rtw_hci_flush_all_queues(rtwdev, false);
+////        rtw_mac_flush_all_queues(rtwdev, false);
+////        if (req->flags & NL80211_SCAN_FLAG_RANDOM_ADDR)
+////                get_random_mask_addr(mac_addr, req->mac_addr,
+////                                     req->mac_addr_mask);
+////        else
+////                ether_addr_copy(mac_addr, vif->addr);
+//
+//	IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
+//
+//        // XXX: rtw_hw_scan_start(), not evertyhing (no queue flush for example)
+//        rtw_core_scan_start(rtwdev, mac_addr, true);
+//        rtwdev->hal.rcr &= ~BIT_CBSSID_BCN;
+//        rtw_write32(rtwdev, REG_RCR, rtwdev->hal.rcr);
+//
+//	rtw_hw_scan_offload(rtwdev, /*struct ieee80211_vif *vif*/ true);
+//
+//}
+//
+////static int rtw_ops_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+////                           struct ieee80211_scan_request *req)
+//static int rtw_ops_hw_scan(struct rtw_dev *rtwdev)
+//{
+////        struct rtw_dev *rtwdev = hw->priv;
 //        int ret = 0;
-
-	// XXX: try without lps
-//        rtw_leave_lps(rtwdev);
-
-//        if (hw_scan && (rtwdev->hw->conf.flags & IEEE80211_CONF_IDLE)) {
-//                ret = rtw_leave_ips(rtwdev);
-//                if (ret) {
-//                        rtw_err(rtwdev, "failed to leave idle state\n");
-//                        return;
-//                }
-//        }
-
-//        ether_addr_copy(rtwvif->mac_addr, mac_addr);
-//        config |= PORT_SET_MAC_ADDR;
-//        rtw_vif_port_config(rtwdev, rtwvif, config);
-	// XXX: shouldn't we do rtw_ops_add_interface() first?
-	// XXX: writing to zero vif, hardcoded by misha
-	rtw_vif_write_addr(rtwdev, rtw_vif_port[0].mac_addr.addr, mac_addr);
-
-	// XXX no coex
-//        rtw_coex_scan_notify(rtwdev, COEX_SCAN_START);
-	rtw_core_fw_scan_notify(rtwdev, true);
-
-        set_bit(RTW_FLAG_DIG_DISABLE, rtwdev->flags);
-        set_bit(RTW_FLAG_SCANNING, rtwdev->flags);
-}
-
-//void rtw_hw_scan_start(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
-//                       struct ieee80211_scan_request *scan_req)
-void rtw_hw_scan_start(struct rtw_dev *rtwdev)
-{
-//        struct rtw_vif *rtwvif = (struct rtw_vif *)vif->drv_priv;
-//        struct cfg80211_scan_request *req = &scan_req->req;
-        u8 mac_addr[ETH_ALEN];
-	struct urtwm_softc *sc = rtwdev->cookie;
-	struct ieee80211com *ic = &sc->sc_ic;
-
-//        rtwdev->scan_info.scanning_vif = vif;
-//        rtwvif->scan_ies = &scan_req->ies;
-//        rtwvif->scan_req = req;
-
-//        ieee80211_stop_queues(rtwdev->hw);
-//        XXX no op for usb
-//        rtw_leave_lps_deep(rtwdev);
-	// XXX: later
-//        rtw_hci_flush_all_queues(rtwdev, false);
-//        rtw_mac_flush_all_queues(rtwdev, false);
-//        if (req->flags & NL80211_SCAN_FLAG_RANDOM_ADDR)
-//                get_random_mask_addr(mac_addr, req->mac_addr,
-//                                     req->mac_addr_mask);
-//        else
-//                ether_addr_copy(mac_addr, vif->addr);
-
-	IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
-
-        // XXX: rtw_hw_scan_start(), not evertyhing (no queue flush for example)
-        rtw_core_scan_start(rtwdev, mac_addr, true);
-        rtwdev->hal.rcr &= ~BIT_CBSSID_BCN;
-        rtw_write32(rtwdev, REG_RCR, rtwdev->hal.rcr);
-
-	rtw_hw_scan_offload(rtwdev, /*struct ieee80211_vif *vif*/ true);
-
-}
-
-//static int rtw_ops_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
-//                           struct ieee80211_scan_request *req)
-static int rtw_ops_hw_scan(struct rtw_dev *rtwdev)
-{
-//        struct rtw_dev *rtwdev = hw->priv;
-        int ret = 0;
-
-	// XXX need functions to actually fulfill fw features
-//        if (!rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_SCAN_OFFLOAD)) {
-//		printf("%s: no FW_FEATURE_SCAN_OFFLOAD\n", __func__);
-//                return 1;
-//	}
-
-//        if (test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
-//                return -EBUSY;
-
-	// XXX locking
-//        mutex_lock(&rtwdev->mutex);
-//	rtw_hw_scan_start(rtwdev, vif, req);
-	rtw_hw_scan_start(rtwdev);
-//        ret = rtw_hw_scan_offload(rtwdev, vif, true);
-//        if (ret) {
-//                rtw_hw_scan_abort(rtwdev);
-//                rtw_err(rtwdev, "HW scan failed with status: %d\n", ret);
-//        }
-        // XXX locking
-//        mutex_unlock(&rtwdev->mutex);
-
-        return ret;
-}
+//
+//	// XXX need functions to actually fulfill fw features
+////        if (!rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_SCAN_OFFLOAD)) {
+////		printf("%s: no FW_FEATURE_SCAN_OFFLOAD\n", __func__);
+////                return 1;
+////	}
+//
+////        if (test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
+////                return -EBUSY;
+//
+//	// XXX locking
+////        mutex_lock(&rtwdev->mutex);
+////	rtw_hw_scan_start(rtwdev, vif, req);
+//	rtw_hw_scan_start(rtwdev);
+////        ret = rtw_hw_scan_offload(rtwdev, vif, true);
+////        if (ret) {
+////                rtw_hw_scan_abort(rtwdev);
+////                rtw_err(rtwdev, "HW scan failed with status: %d\n", ret);
+////        }
+//        // XXX locking
+////        mutex_unlock(&rtwdev->mutex);
+//
+//        return ret;
+//}
 
 
 // }}}
@@ -30831,8 +30831,8 @@ int
 urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
 	struct urtwm_softc *sc = ic->ic_softc;
-	struct rtw88_softc *sc_sc = &sc->sc_sc;
-	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
+//	struct rtw88_softc *sc_sc = &sc->sc_sc;
+//	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	enum ieee80211_state ostate;
 	int /*ret,*/ s, error;
 
@@ -30847,7 +30847,9 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	case IEEE80211_S_INIT:
 		break;
 	case IEEE80211_S_SCAN:
-		rtw_ops_hw_scan(rtwdev);
+		// XXX: our chip doesn't have FW_FEATURE_SCAN_OFFLOAD (tested on
+		// ubutntu)
+//		rtw_ops_hw_scan(rtwdev);
 		break;
 	default:
 		break;
