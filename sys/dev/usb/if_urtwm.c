@@ -26398,6 +26398,7 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	if (qsel == TX_DESC_QSEL_MGMT) {
 		printf("%s: will send qsel=%i\n", __func__, qsel);
                 rtw_tx_mgmt_pkt_info_update(rtwdev, pkt_info);
+                printf("%s: pkt_info->bmc=%i\n", __func__, pkt_info->bmc);
 	}
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
@@ -30687,36 +30688,36 @@ static void rtw_vif_write_addr(struct rtw_dev *rtwdev, u32 start, const u8 *addr
 //
 ////void rtw_core_scan_start(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
 ////                         const u8 *mac_addr, bool hw_scan)
-//void rtw_core_scan_start(struct rtw_dev *rtwdev, const u8 *mac_addr, bool hw_scan)
-//{
-////        u32 config = 0;
-////        int ret = 0;
-//
-//	// XXX: try without lps
-////        rtw_leave_lps(rtwdev);
-//
-////        if (hw_scan && (rtwdev->hw->conf.flags & IEEE80211_CONF_IDLE)) {
-////                ret = rtw_leave_ips(rtwdev);
-////                if (ret) {
-////                        rtw_err(rtwdev, "failed to leave idle state\n");
-////                        return;
-////                }
-////        }
-//
-////        ether_addr_copy(rtwvif->mac_addr, mac_addr);
-////        config |= PORT_SET_MAC_ADDR;
-////        rtw_vif_port_config(rtwdev, rtwvif, config);
-//	// XXX: shouldn't we do rtw_ops_add_interface() first?
-//	// XXX: writing to zero vif, hardcoded by misha
-//	rtw_vif_write_addr(rtwdev, rtw_vif_port[0].mac_addr.addr, mac_addr);
-//
-//	// XXX no coex
-////        rtw_coex_scan_notify(rtwdev, COEX_SCAN_START);
+void rtw_core_scan_start(struct rtw_dev *rtwdev, const u8 *mac_addr, bool hw_scan)
+{
+	//        u32 config = 0;
+	//        int ret = 0;
+
+	// XXX: try without lps
+	//        rtw_leave_lps(rtwdev);
+
+	//        if (hw_scan && (rtwdev->hw->conf.flags & IEEE80211_CONF_IDLE)) {
+	//                ret = rtw_leave_ips(rtwdev);
+	//                if (ret) {
+	//                        rtw_err(rtwdev, "failed to leave idle state\n");
+	//                        return;
+	//                }
+	//        }
+
+	//        ether_addr_copy(rtwvif->mac_addr, mac_addr);
+	//        config |= PORT_SET_MAC_ADDR;
+	//        rtw_vif_port_config(rtwdev, rtwvif, config);
+	// XXX: shouldn't we do rtw_ops_add_interface() first?
+	// XXX: writing to zero vif, hardcoded by misha
+	rtw_vif_write_addr(rtwdev, rtw_vif_port[0].mac_addr.addr, mac_addr);
+
+	// XXX no coex
+	//        rtw_coex_scan_notify(rtwdev, COEX_SCAN_START);
 //	rtw_core_fw_scan_notify(rtwdev, true);
-//
-//        set_bit(RTW_FLAG_DIG_DISABLE, rtwdev->flags);
-//        set_bit(RTW_FLAG_SCANNING, rtwdev->flags);
-//}
+
+	set_bit(RTW_FLAG_DIG_DISABLE, rtwdev->flags);
+	set_bit(RTW_FLAG_SCANNING, rtwdev->flags);
+}
 //
 ////void rtw_hw_scan_start(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
 ////                       struct ieee80211_scan_request *scan_req)
@@ -31535,6 +31536,7 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	enum ieee80211_state ostate;
 	int /*ret,*/ s, error;
+	u8 mac_addr[ETH_ALEN];
 
 	s = splnet();
 	ostate = ic->ic_state;
@@ -31550,6 +31552,9 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		// XXX: our chip doesn't have FW_FEATURE_SCAN_OFFLOAD (tested on
 		// ubutntu)
 //		rtw_ops_hw_scan(rtwdev);
+		IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
+		rtw_core_scan_start(rtwdev, &*mac_addr, false);
+
 		rtw_set_channel(rtwdev);
 		break;
 	default:
@@ -31630,6 +31635,7 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 
 				/* rcr reset after powered on */
 				rtw_write32(rtwdev, REG_RCR, rtwdev->hal.rcr);
+				printf("%s: rtwdev->hal.rcr=0x%x\n", __func__, rtwdev->hal.rcr);
 
 				// XXX: watchdog
 //				ieee80211_queue_delayed_work(rtwdev->hw, &rtwdev->watch_dog_work,
