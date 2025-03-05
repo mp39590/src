@@ -26334,7 +26334,6 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 		return ENOMEM;
 	}
 	pipe = sc->tx_pipe[ep];
-	printf("%s: ep=%i\n", __func__, ep);
 //	if (qsel == TX_DESC_QSEL_MGMT)
 //		usbd_dump_pipe(pipe);
 //	for (int i = 0; i < m->m_len; i++) {
