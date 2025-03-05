@@ -25104,11 +25104,16 @@ enum rtw88_hci_type {
 	RTW88_HCI_TYPE_UNDEFINE,
 };
 
+struct rtw_tx_pkt_info;
+
 /* ops for PCI, USB and SDIO */
 struct rtw88_hci_ops {
 //	int (*tx_write)(struct rtw_dev *rtwdev,
 //	    struct rtw88_tx_pkt_info *pkt_info,
 //	    struct sk_buff *skb);
+	int (*tx_write)(struct rtw_dev *rtwdev,
+	    struct rtw_tx_pkt_info *pkt_info,
+	    struct mbuf *m);
 //	void (*tx_kick_off)(struct rtw_dev *rtwdev);
 //	void (*flush_queues)(struct rtw_dev *rtwdev, u32 queues, bool drop);
 	int (*setup)(struct rtw_dev *rtwdev);
@@ -26465,6 +26470,10 @@ static int rtw_usb_write_data_h2c(struct rtw_dev *rtwdev, u8 *buf, u32 size)
 
 // ---------- write usb packet end ----------
 
+int rtw_usb_tx_write(struct rtw_dev *rtwdev,
+    struct rtw_tx_pkt_info *pkt_info,
+    struct mbuf *m);
+
 struct rtw88_hci_ops rtw88_usb_ops = {
 	.setup = rtw88_usb_setup,
 	.stop = rtw_usb_stop,
@@ -26477,6 +26486,7 @@ struct rtw88_hci_ops rtw88_usb_ops = {
 	.write_data_rsvd_page = rtw_usb_write_data_rsvd_page,
 	.interface_cfg = rtw_usb_interface_cfg,
 	.write_data_h2c = rtw_usb_write_data_h2c,
+	.tx_write = rtw_usb_tx_write,
 };
 
 int
@@ -31341,6 +31351,42 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 
 // {{{ rtw_tx
 
+int rtw_usb_tx_write(struct rtw_dev *rtwdev,
+    struct rtw_tx_pkt_info *pkt_info,
+    struct mbuf *m)
+{
+//        struct rtw_usb *rtwusb = rtw_get_usb_priv(rtwdev);
+//        const struct rtw_chip_info *chip = rtwdev->chip;
+//        struct rtw_usb_tx_data *tx_data;
+//        u8 *pkt_desc;
+//        int ep;
+//
+//        pkt_info->qsel = rtw_usb_tx_queue_mapping_to_qsel(skb);
+	// TODO: set manually
+        pkt_info->qsel = TX_DESC_QSEL_MGMT;
+//        pkt_desc = skb_push(skb, chip->tx_pkt_desc_sz);
+//        memset(pkt_desc, 0, chip->tx_pkt_desc_sz);
+//        ep = qsel_to_ep(rtwusb, pkt_info->qsel);
+//        rtw_tx_fill_tx_desc(rtwdev, pkt_info, skb);
+//        rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, skb->data);
+//        tx_data = rtw_usb_get_tx_data(skb);
+//        tx_data->sn = pkt_info->sn;
+//
+//        skb_queue_tail(&rtwusb->tx_queue[ep], skb);
+//
+        return 0;
+}
+
+//static inline int rtw_hci_tx_write(struct rtw_dev *rtwdev,
+//                                   struct rtw_tx_pkt_info *pkt_info,
+//                                   struct sk_buff *skb)
+static inline int rtw_hci_tx_write(struct rtw_dev *rtwdev,
+    struct rtw_tx_pkt_info *pkt_info,
+    struct mbuf *m)
+{
+        return rtwdev->hci.ops->tx_write(rtwdev, pkt_info, m);
+}
+
 //static void rtw_tx_pkt_info_update_rate(struct rtw_dev *rtwdev,
 //                                        struct rtw_tx_pkt_info *pkt_info,
 //                                        struct sk_buff *skb,
@@ -31446,11 +31492,12 @@ void rtw_tx_pkt_info_update(struct rtw_dev *rtwdev,
 void rtw_tx(struct rtw_dev *rtwdev, struct mbuf *m)
 {
         struct rtw_tx_pkt_info pkt_info = {0};
-//        int ret;
+        int ret;
 
 //        rtw_tx_pkt_info_update(rtwdev, &pkt_info, control->sta, skb);
 	rtw_tx_pkt_info_update(rtwdev, &pkt_info, m);
 //	ret = rtw_hci_tx_write(rtwdev, &pkt_info, skb);
+	ret = rtw_hci_tx_write(rtwdev, &pkt_info, m);
 //        if (ret) {
 ////                rtw_err(rtwdev, "failed to write TX skb to HCI\n");
 //                printf("%s: failed to write TX skb to HCI\n", __func__);
