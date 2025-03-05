@@ -27,6 +27,7 @@
 #include <net80211/ieee80211_var.h>
 #include <net80211/ieee80211_amrr.h>
 #include <net80211/ieee80211_radiotap.h>
+#include <net80211/ieee80211_proto.h>
 
 #include <dev/usb/usb.h>
 #include <dev/usb/usbdi.h>
@@ -30865,6 +30866,30 @@ void
 urtwm_start(struct ifnet *ifp)
 {
 	printf("%s: \n", __func__);
+
+	struct urtwm_softc *sc = ifp->if_softc;
+	struct ieee80211com *ic = &sc->sc_ic;
+	struct ieee80211_node *ni;
+	struct mbuf *m;
+
+	/* Send pending management frames first. */
+	m = mq_dequeue(&ic->ic_mgtq);
+	if (m != NULL) {
+		ni = m->m_pkthdr.ph_cookie;
+	} else {
+		printf("%s: m is NULL\n", __func__);
+		return;
+	}
+
+	ieee80211_dump_pkt(mtod(m, uint8_t *), m->m_pkthdr.len, 0, 0);
+
+//	m = ifq_dequeue(&ifp->if_snd);
+//	if (m == NULL) {
+//		printf("%s: m is NULL\n", __func__);
+//		return;
+//	}
+//	if ((m = ieee80211_encap(ifp, m, &ni)) == NULL)
+//		continue;
 }
 
 int
