@@ -26286,7 +26286,8 @@ void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-//	printf("%s: TX status=%d\n", __func__, status);
+	if (status != USBD_NORMAL_COMPLETION)
+		printf("%s: TX status=%d\n", __func__, status);
 }
 //static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct sk_buff *skb,
 //                              usb_complete_t cb, void *context)
@@ -26333,7 +26334,9 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 		return ENOMEM;
 	}
 	pipe = sc->tx_pipe[ep];
-//	usbd_dump_pipe(pipe);
+	printf("%s: ep=%i\n", __func__, ep);
+//	if (qsel == TX_DESC_QSEL_MGMT)
+//		usbd_dump_pipe(pipe);
 //	for (int i = 0; i < m->m_len; i++) {
 //		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 //	}
@@ -28759,6 +28762,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 	}
 
 	rtwdev->hci.bulkout_num = num_out_pipes;
+	printf("%s: num_out_pipes=%i\n", __func__, num_out_pipes);
 //
 //	if (num_out_pipes < 1 || num_out_pipes > 4) {
 //		rtw_err(rtwdev, "invalid number of endpoints %d\n", num_out_pipes);
