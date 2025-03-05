@@ -26349,6 +26349,9 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 
 }
 
+static void rtw_tx_mgmt_pkt_info_update(struct rtw_dev *rtwdev,
+    struct rtw_tx_pkt_info *pkt_info);
+
 static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 			      struct rtw_tx_pkt_info *pkt_info,
 			      u8 *buf)
@@ -26390,6 +26393,10 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	m->m_nextpkt = NULL;
 	m->m_type = 0;
 	m->m_flags = 0;
+	if (qsel == TX_DESC_QSEL_MGMT) {
+		printf("%s: will send qsel=%i\n", __func__, qsel);
+                rtw_tx_mgmt_pkt_info_update(rtwdev, pkt_info);
+	}
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
 
