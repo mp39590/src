@@ -406,6 +406,10 @@ DECLARE_EWMA(thermal, 10, 4);
 #define RTW_OLD_PROBE_PG_CNT            2
 #define RTW_PROBE_PG_CNT                4
 
+#define RTW_MAX_MAC_ID_NUM              32
+#define RTW_MAX_SEC_CAM_NUM             32
+#define MAX_PG_CAM_BACKUP_NUM           8
+
 // {{{ phy crap
 
 enum rtw_phy_band_type {
@@ -413,6 +417,25 @@ enum rtw_phy_band_type {
         PHY_BAND_5G     = 1,
 };
 
+enum rtw_rate_index {
+        RTW_RATEID_BGN_40M_2SS  = 0,
+        RTW_RATEID_BGN_40M_1SS  = 1,
+        RTW_RATEID_BGN_20M_2SS  = 2,
+        RTW_RATEID_BGN_20M_1SS  = 3,
+        RTW_RATEID_GN_N2SS      = 4,
+        RTW_RATEID_GN_N1SS      = 5,
+        RTW_RATEID_BG           = 6,
+        RTW_RATEID_G            = 7,
+        RTW_RATEID_B_20M        = 8,
+        RTW_RATEID_ARFR0_AC_2SS = 9,
+        RTW_RATEID_ARFR1_AC_1SS = 10,
+        RTW_RATEID_ARFR2_AC_2G_1SS = 11,
+        RTW_RATEID_ARFR3_AC_2G_2SS = 12,
+        RTW_RATEID_ARFR4_AC_3SS = 13,
+        RTW_RATEID_ARFR5_N_3SS  = 14,
+        RTW_RATEID_ARFR7_N_4SS  = 15,
+        RTW_RATEID_ARFR6_AC_4SS = 16
+};
 
 enum rtw_trx_desc_rate {
         DESC_RATE1M     = 0x00,
@@ -23312,7 +23335,7 @@ struct rtw_h2c_cmd {
 struct rtw_vif {
 	enum rtw_net_type net_type;
 	u16 aid;
-//        u8 mac_id;
+	u8 mac_id;
         u8 mac_addr[ETH_ALEN];
 	u8 bssid[ETH_ALEN];
 //        u8 port;
@@ -25406,7 +25429,7 @@ struct rtw_dev {
 //	uint32_t rts_threshold;
 //
 //	DECLARE_BITMAP(hw_port, RTW_PORT_NUM);
-//	DECLARE_BITMAP(mac_id_map, RTW_MAX_MAC_ID_NUM);
+	DECLARE_BITMAP(mac_id_map, RTW_MAX_MAC_ID_NUM);
 //	DECLARE_BITMAP(flags, NUM_OF_RTW_FLAGS);
 	// TODO - used to be DECLARE_BITMAP
 	unsigned long flags;
@@ -30779,6 +30802,16 @@ void rtw_vif_port_config(struct rtw_dev *rtwdev,
         }
 }
 
+//static inline u8 rtw_acquire_macid(struct rtw_dev *rtwdev)
+//{
+//        unsigned long mac_id;
+//
+//        mac_id = find_first_zero_bit(rtwdev->mac_id_map, RTW_MAX_MAC_ID_NUM);
+//        if (mac_id < RTW_MAX_MAC_ID_NUM)
+//                set_bit(mac_id, rtwdev->mac_id_map);
+//
+//        return mac_id;
+//}
 
 static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
 {
@@ -30806,7 +30839,7 @@ static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
 //
 //        mutex_lock(&rtwdev->mutex);
 //
-//        rtwvif->mac_id = rtw_acquire_macid(rtwdev);
+//	rtwvif->mac_id = rtw_acquire_macid(rtwdev);
 //        if (rtwvif->mac_id >= RTW_MAX_MAC_ID_NUM) {
 //                mutex_unlock(&rtwdev->mutex);
 //                return -ENOSPC;
@@ -31283,6 +31316,7 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 	chip->ops->set_channel(rtwdev, center_chan, bandwidth,
 	    hal->current_primary_channel_index);
 //
+//        // XXX: ignore
 //        if (hal->current_band_type == RTW_BAND_5G) {
 //                rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_5G);
 //        } else {
@@ -31292,6 +31326,7 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 //                        rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_24G_NOFORSCAN);
 //        }
 //
+//        // TODO: testing shows that we can leave this out
 //        rtw_phy_set_tx_power_level(rtwdev, center_chan);
 //
 //        /* if the channel isn't set for scanning, we will do RF calibration
@@ -31300,6 +31335,135 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 //         */
 //        if (!test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
 //                rtwdev->need_rfk = true;
+}
+
+// }}}
+
+// {{{ rtw_tx
+
+//static void rtw_tx_pkt_info_update_rate(struct rtw_dev *rtwdev,
+//                                        struct rtw_tx_pkt_info *pkt_info,
+//                                        struct sk_buff *skb,
+//                                        bool ignore_rate)
+static void rtw_tx_pkt_info_update_rate(struct rtw_dev *rtwdev,
+    struct rtw_tx_pkt_info *pkt_info)
+{
+        if (rtwdev->hal.current_band_type == RTW_BAND_2G) {
+                pkt_info->rate_id = RTW_RATEID_B_20M;
+//                pkt_info->rate = rtw_get_mgmt_rate(rtwdev, skb, DESC_RATE1M,
+//                                                   ignore_rate);
+		// XXX: force lowest rate
+		pkt_info->rate = DESC_RATE1M;
+        } else {
+                pkt_info->rate_id = RTW_RATEID_G;
+//                pkt_info->rate = rtw_get_mgmt_rate(rtwdev, skb, DESC_RATE6M,
+//                                                   ignore_rate);
+		// XXX: force lowest rate
+		pkt_info->rate = DESC_RATE6M;
+        }
+
+        pkt_info->use_rate = true;
+        pkt_info->dis_rate_fallback = true;
+}
+
+//static void rtw_tx_mgmt_pkt_info_update(struct rtw_dev *rtwdev,
+//                                        struct rtw_tx_pkt_info *pkt_info,
+//                                        struct ieee80211_sta *sta,
+//                                        struct sk_buff *skb)
+static void rtw_tx_mgmt_pkt_info_update(struct rtw_dev *rtwdev,
+    struct rtw_tx_pkt_info *pkt_info)
+{
+//        rtw_tx_pkt_info_update_rate(rtwdev, pkt_info, skb, false);
+        rtw_tx_pkt_info_update_rate(rtwdev, pkt_info);
+        pkt_info->dis_qselseq = true;
+        pkt_info->en_hwseq = true;
+        pkt_info->hw_ssn_sel = 0;
+        /* TODO: need to change hw port and hw ssn sel for multiple vifs */
+}
+
+//void rtw_tx_pkt_info_update(struct rtw_dev *rtwdev,
+//                            struct rtw_tx_pkt_info *pkt_info,
+//                            struct ieee80211_sta *sta,
+//                            struct sk_buff *skb)
+void rtw_tx_pkt_info_update(struct rtw_dev *rtwdev,
+    struct rtw_tx_pkt_info *pkt_info,
+    struct mbuf *m)
+{
+	const struct rtw_chip_info *chip = rtwdev->chip;
+//        struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+//        struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+//        struct ieee80211_vif *vif = info->control.vif;
+//        struct rtw_sta_info *si;
+//        struct rtw_vif *rtwvif;
+//        __le16 fc = hdr->frame_control;
+        bool bmc;
+	struct ieee80211_frame *wh;
+
+	wh = mtod(m, struct ieee80211_frame *);
+//
+//        if (sta) {
+//                si = (struct rtw_sta_info *)sta->drv_priv;
+//                pkt_info->mac_id = si->mac_id;
+//        } else if (vif) {
+//                rtwvif = (struct rtw_vif *)vif->drv_priv;
+//                pkt_info->mac_id = rtwvif->mac_id;
+//        }
+		// XXX: blindly set it to 0
+		pkt_info->mac_id = 0;
+//
+//        if (ieee80211_is_mgmt(fc) || ieee80211_is_nullfunc(fc))
+//                rtw_tx_mgmt_pkt_info_update(rtwdev, pkt_info, sta, skb);
+                rtw_tx_mgmt_pkt_info_update(rtwdev, pkt_info);
+//        else if (ieee80211_is_data(fc))
+//                rtw_tx_data_pkt_info_update(rtwdev, pkt_info, sta, skb);
+//
+//        bmc = is_broadcast_ether_addr(hdr->addr1) ||
+//              is_multicast_ether_addr(hdr->addr1);
+//
+//        if (info->flags & IEEE80211_TX_CTL_REQ_TX_STATUS)
+//                rtw_tx_report_enable(rtwdev, pkt_info);
+
+	bmc = IEEE80211_IS_MULTICAST(wh->i_addr1);
+	printf("%s: bmc=%i\n", __func__, bmc);
+
+        pkt_info->bmc = bmc;
+//	rtw_tx_pkt_info_update_sec(rtwdev, pkt_info, skb);
+	// XXX: set sec_type manually
+	pkt_info->sec_type = 0;
+        pkt_info->tx_pkt_size = m->m_len;
+        pkt_info->offset = chip->tx_pkt_desc_sz;
+//        pkt_info->qsel = skb->priority;
+        pkt_info->qsel = 0;
+        pkt_info->ls = true;
+
+        /* maybe merge with tx status ? */
+//        rtw_tx_stats(rtwdev, vif, skb);
+}
+
+//void rtw_tx(struct rtw_dev *rtwdev,
+//            struct ieee80211_tx_control *control,
+//            struct sk_buff *skb)
+void rtw_tx(struct rtw_dev *rtwdev, struct mbuf *m)
+{
+        struct rtw_tx_pkt_info pkt_info = {0};
+//        int ret;
+
+//        rtw_tx_pkt_info_update(rtwdev, &pkt_info, control->sta, skb);
+	rtw_tx_pkt_info_update(rtwdev, &pkt_info, m);
+//	ret = rtw_hci_tx_write(rtwdev, &pkt_info, skb);
+//        if (ret) {
+////                rtw_err(rtwdev, "failed to write TX skb to HCI\n");
+//                printf("%s: failed to write TX skb to HCI\n", __func__);
+//                goto out;
+//        }
+
+        // XXX: here we send the packet in process context
+//        rtw_hci_tx_kick_off(rtwdev);
+
+        return;
+
+//out:
+//        ieee80211_free_txskb(rtwdev->hw, skb);
 }
 
 // }}}
