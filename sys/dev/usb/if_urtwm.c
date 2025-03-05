@@ -31374,6 +31374,7 @@ int rtw_usb_tx_write(struct rtw_dev *rtwdev,
 //
 //        skb_queue_tail(&rtwusb->tx_queue[ep], skb);
 //
+	rtw_usb_write_data(rtwdev, pkt_info, mtod(m, u8 *));
         return 0;
 }
 
@@ -31479,6 +31480,7 @@ void rtw_tx_pkt_info_update(struct rtw_dev *rtwdev,
         pkt_info->tx_pkt_size = m->m_len;
         pkt_info->offset = chip->tx_pkt_desc_sz;
 //        pkt_info->qsel = skb->priority;
+	// XXX: set manually
         pkt_info->qsel = 0;
         pkt_info->ls = true;
 
@@ -31556,6 +31558,8 @@ urtwm_start(struct ifnet *ifp)
 	printf("%s: \n", __func__);
 
 	struct urtwm_softc *sc = ifp->if_softc;
+	struct rtw88_softc *sc_sc = &sc->sc_sc;
+	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ieee80211_node *ni;
 	struct mbuf *m;
@@ -31570,6 +31574,8 @@ urtwm_start(struct ifnet *ifp)
 	}
 
 	ieee80211_dump_pkt(mtod(m, uint8_t *), m->m_pkthdr.len, 0, 0);
+
+	rtw_tx(rtwdev, m);
 
 //	m = ifq_dequeue(&ifp->if_snd);
 //	if (m == NULL) {
