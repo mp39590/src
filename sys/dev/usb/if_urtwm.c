@@ -406,7 +406,6 @@ DECLARE_EWMA(thermal, 10, 4);
 #define RTW_OLD_PROBE_PG_CNT            2
 #define RTW_PROBE_PG_CNT                4
 
-
 // {{{ phy crap
 
 enum rtw_phy_band_type {
@@ -23223,6 +23222,39 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+enum rtw_sar_bands {
+        RTW_SAR_BAND_0,
+        RTW_SAR_BAND_1,
+        /* RTW_SAR_BAND_2, not used now */
+        RTW_SAR_BAND_3,
+        RTW_SAR_BAND_4,
+
+        RTW_SAR_BAND_NR,
+};
+
+enum nl80211_band {
+        /* XXX TODO */
+        NL80211_BAND_2GHZ       = 0,
+        NL80211_BAND_5GHZ,
+        NL80211_BAND_60GHZ,
+        NL80211_BAND_6GHZ,
+
+        /* Keep this last. */
+        NUM_NL80211_BANDS
+};
+
+enum rtw_supported_band {
+        RTW_BAND_2G = BIT(NL80211_BAND_2GHZ),
+        RTW_BAND_5G = BIT(NL80211_BAND_5GHZ),
+        RTW_BAND_60G = BIT(NL80211_BAND_60GHZ),
+};
+
+struct rtw_channel_params {
+        u8 center_chan;
+        u8 primary_chan;
+        u8 bandwidth;
+};
+
 struct rtw_chan_list {
         u32 buf_size;
         u32 ch_num;
@@ -23588,6 +23620,15 @@ enum rtw_bandwidth {
         RTW_CHANNEL_WIDTH_10    = 6,
 };
 
+enum rtw_sc_offset {
+        RTW_SC_DONT_CARE        = 0,
+        RTW_SC_20_UPPER         = 1,
+        RTW_SC_20_LOWER         = 2,
+        RTW_SC_20_UPMOST        = 3,
+        RTW_SC_20_LOWEST        = 4,
+        RTW_SC_40_UPPER         = 9,
+        RTW_SC_40_LOWER         = 10,
+};
 
 enum rtw_c2h_cmd_id {
         C2H_CCX_TX_RPT = 0x03,
@@ -24069,7 +24110,7 @@ struct rtw88_chip_info {
 	uint32_t rxff_size;
 //	uint32_t fw_rxff_size;
 	uint16_t rsvd_drv_pg_num;
-//	uint8_t band;
+	uint8_t band;
 	uint8_t page_size;
 	uint8_t csi_buf_pg_num;
 //	uint8_t dig_max;
@@ -24862,7 +24903,7 @@ const struct rtw88_chip_info rtw8822b_hw_spec = {
 	.is_pwr_by_rate_dec = true,
 	.max_power_index = 0x3f,
 	.csi_buf_pg_num = 0,
-//	.band = RTW_BAND_2G | RTW_BAND_5G,
+	.band = RTW_BAND_2G | RTW_BAND_5G,
 	.page_size = TX_PAGE_SIZE,
 //	.dig_min = 0x1c,
 	.usb_tx_agg_desc_num = 3,
@@ -25089,10 +25130,10 @@ struct rtw88_hal {
 //
 //	uint8_t ps_mode;
 	uint8_t current_channel;
-//	uint8_t current_primary_channel_index;
-//	uint8_t current_band_width;
-//	uint8_t current_band_type;
-//	uint8_t primary_channel;
+	uint8_t current_primary_channel_index;
+	uint8_t current_band_width;
+	uint8_t current_band_type;
+	uint8_t primary_channel;
 //
 //	/* center channel for different available bandwidth,
 //	 * val of (bw > current_band_width) is invalid
@@ -25129,7 +25170,7 @@ struct rtw88_hal {
 //	s8 tx_pwr_tbl[RTW_RF_PATH_MAX]
 //		     [DESC_RATE_MAX];
 //
-//	enum rtw_sar_bands sar_band;
+	enum rtw_sar_bands sar_band;
 //	struct rtw_sar sar;
 //
 //	/* for 8821c set channel */
@@ -30828,12 +30869,155 @@ static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
 
 // }}}
 
+// {{{ rtw_set_channel
+
+void rtw_update_channel(struct rtw_dev *rtwdev, u8 center_channel,
+                        u8 primary_channel, enum rtw_supported_band band,
+                        enum rtw_bandwidth bandwidth)
+{
+//        enum nl80211_band nl_band = rtw_hw_to_nl80211_band(band);
+	struct rtw_hal *hal = &rtwdev->hal;
+	u8 *cch_by_bw = hal->cch_by_bw;
+	u32 center_freq, primary_freq;
+	enum rtw_sar_bands sar_band;
+	u8 primary_channel_idx;
+
+//        center_freq = ieee80211_channel_to_frequency(center_channel, nl_band);
+//        primary_freq = ieee80211_channel_to_frequency(primary_channel, nl_band);
+	// TODO: only 2GHZ Channels
+	center_freq = ieee80211_ieee2mhz(center_channel, IEEE80211_CHAN_2GHZ);
+	primary_freq = ieee80211_ieee2mhz(primary_channel, IEEE80211_CHAN_2GHZ);
+	printf("%s: center_freq=%d\n", __func__, center_freq);
+	printf("%s: primary_freq=%d\n", __func__, primary_freq);
+
+        /* assign the center channel used while 20M bw is selected */
+        cch_by_bw[RTW_CHANNEL_WIDTH_20] = primary_channel;
+
+        /* assign the center channel used while current bw is selected */
+        cch_by_bw[bandwidth] = center_channel;
+
+        switch (bandwidth) {
+        case RTW_CHANNEL_WIDTH_20:
+        default:
+                primary_channel_idx = RTW_SC_DONT_CARE;
+                break;
+//        case RTW_CHANNEL_WIDTH_40:
+//                if (primary_freq > center_freq)
+//                        primary_channel_idx = RTW_SC_20_UPPER;
+//                else
+//                        primary_channel_idx = RTW_SC_20_LOWER;
+//                break;
+//        case RTW_CHANNEL_WIDTH_80:
+//                if (primary_freq > center_freq) {
+//                        if (primary_freq - center_freq == 10)
+//                                primary_channel_idx = RTW_SC_20_UPPER;
+//                        else
+//                                primary_channel_idx = RTW_SC_20_UPMOST;
+//
+//                        /* assign the center channel used
+//                         * while 40M bw is selected
+//                         */
+//                        cch_by_bw[RTW_CHANNEL_WIDTH_40] = center_channel + 4;
+//                } else {
+//                        if (center_freq - primary_freq == 10)
+//                                primary_channel_idx = RTW_SC_20_LOWER;
+//                        else
+//                                primary_channel_idx = RTW_SC_20_LOWEST;
+//
+//                        /* assign the center channel used
+//                         * while 40M bw is selected
+//                         */
+//                        cch_by_bw[RTW_CHANNEL_WIDTH_40] = center_channel - 4;
+//                }
+//                break;
+        }
+
+        switch (center_channel) {
+        case 1 ... 14:
+                sar_band = RTW_SAR_BAND_0;
+                break;
+        case 36 ... 64:
+                sar_band = RTW_SAR_BAND_1;
+                break;
+        case 100 ... 144:
+                sar_band = RTW_SAR_BAND_3;
+                break;
+        case 149 ... 177:
+                sar_band = RTW_SAR_BAND_4;
+                break;
+        default:
+//                WARN(1, "unknown ch(%u) to SAR band\n", center_channel);
+                printf("%s: unknown ch(%u) to SAR band\n", __func__, center_channel);
+                sar_band = RTW_SAR_BAND_0;
+                break;
+        }
+
+        hal->current_primary_channel_index = primary_channel_idx;
+        hal->current_band_width = bandwidth;
+        hal->primary_channel = primary_channel;
+        hal->current_channel = center_channel;
+        hal->current_band_type = band;
+        hal->sar_band = sar_band;
+}
+
+// XXX: We scan only channel 1
+void rtw_set_channel(struct rtw_dev *rtwdev)
+{
+//        const struct rtw_chip_info *chip = rtwdev->chip;
+//        struct ieee80211_hw *hw = rtwdev->hw;
+//        struct rtw_hal *hal = &rtwdev->hal;
+//        struct rtw_channel_params ch_param;
+        u8 center_chan, primary_chan, bandwidth, band;
+
+//        rtw_get_channel_params(&hw->conf.chandef, &ch_param);
+//        if (WARN(ch_param.center_chan == 0, "Invalid channel\n"))
+//                return;
+
+//        center_chan = ch_param.center_chan;
+        center_chan = 1;
+//        primary_chan = ch_param.primary_chan;
+        primary_chan = 1;
+//        bandwidth = ch_param.bandwidth;
+	bandwidth = RTW_CHANNEL_WIDTH_20;
+//        band = ch_param.center_chan > 14 ? RTW_BAND_5G : RTW_BAND_2G;
+        band = center_chan > 14 ? RTW_BAND_5G : RTW_BAND_2G;
+
+        rtw_update_channel(rtwdev, center_chan, primary_chan, band, bandwidth);
+
+	// XXX: is NULL for 8822bu
+//        if (rtwdev->scan_info.op_chan)
+//                rtw_store_op_chan(rtwdev, true);
+//
+//        chip->ops->set_channel(rtwdev, center_chan, bandwidth,
+//                               hal->current_primary_channel_index);
+//
+//        if (hal->current_band_type == RTW_BAND_5G) {
+//                rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_5G);
+//        } else {
+//                if (test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
+//                        rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_24G);
+//                else
+//                        rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_24G_NOFORSCAN);
+//        }
+//
+//        rtw_phy_set_tx_power_level(rtwdev, center_chan);
+//
+//        /* if the channel isn't set for scanning, we will do RF calibration
+//         * in ieee80211_ops::mgd_prepare_tx(). Performing the calibration
+//         * during scanning on each channel takes too long.
+//         */
+//        if (!test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
+//                rtwdev->need_rfk = true;
+}
+
+// }}}
+
 int
 urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
 	struct urtwm_softc *sc = ic->ic_softc;
-//	struct rtw88_softc *sc_sc = &sc->sc_sc;
-//	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
+	struct rtw88_softc *sc_sc = &sc->sc_sc;
+	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	enum ieee80211_state ostate;
 	int /*ret,*/ s, error;
 
@@ -30851,6 +31035,7 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		// XXX: our chip doesn't have FW_FEATURE_SCAN_OFFLOAD (tested on
 		// ubutntu)
 //		rtw_ops_hw_scan(rtwdev);
+		rtw_set_channel(rtwdev);
 		break;
 	default:
 		break;
