@@ -140,7 +140,7 @@ ieee80211_print_essid(const u_int8_t *essid, int len)
 	}
 }
 
-#ifdef IEEE80211_DEBUG
+//#ifdef IEEE80211_DEBUG
 void
 ieee80211_dump_pkt(const u_int8_t *buf, int len, int rate, int rssi)
 {
@@ -200,7 +200,7 @@ ieee80211_dump_pkt(const u_int8_t *buf, int len, int rate, int rssi)
 		printf("\n");
 	}
 }
-#endif
+//#endif
 
 int
 ieee80211_fix_rate(struct ieee80211com *ic, struct ieee80211_node *ni,
