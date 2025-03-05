@@ -24039,8 +24039,8 @@ struct rtw_chip_ops {
 //        void (*shutdown)(struct rtw_dev *rtwdev);
 	int (*read_efuse)(struct rtw_dev *rtwdev, u8 *map);
 	void (*phy_set_param)(struct rtw_dev *rtwdev);
-//        void (*set_channel)(struct rtw_dev *rtwdev, u8 channel,
-//                            u8 bandwidth, u8 primary_chan_idx);
+	void (*set_channel)(struct rtw_dev *rtwdev, u8 channel,
+	    u8 bandwidth, u8 primary_chan_idx);
 //        void (*query_phy_status)(struct rtw_dev *rtwdev, u8 *phy_status,
 //                                 struct rtw_rx_pkt_stat *pkt_stat);
 	u32 (*read_rf)(struct rtw_dev *rtwdev, enum rtw_rf_path rf_path,
@@ -24659,6 +24659,8 @@ u32 rtw_phy_read_rf(struct rtw_dev *rtwdev, enum rtw_rf_path rf_path,
 bool rtw_phy_write_rf_reg_sipi(struct rtw_dev *rtwdev, enum rtw_rf_path rf_path,
                                u32 addr, u32 mask, u32 data);
 static void rtw8822b_adaptivity_init(struct rtw_dev *rtwdev);
+static void rtw8822b_set_channel(struct rtw_dev *rtwdev, u8 channel, u8 bw,
+                                 u8 primary_chan_idx);
 
 
 struct rtw_rfe_def {
@@ -24841,7 +24843,7 @@ static const struct rtw_chip_ops rtw8822b_ops = {
 	.phy_set_param          = rtw8822b_phy_set_param,
         .read_efuse             = rtw8822b_read_efuse,
 //        .query_phy_status       = query_phy_status,
-//        .set_channel            = rtw8822b_set_channel,
+	.set_channel            = rtw8822b_set_channel,
 	.mac_init               = rtw8822b_mac_init,
 	.read_rf                = rtw_phy_read_rf,
 	.write_rf               = rtw_phy_write_rf_reg_sipi,
@@ -30871,6 +30873,296 @@ static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
 
 // {{{ rtw_set_channel
 
+static void rtw8822b_set_channel_rxdfir(struct rtw_dev *rtwdev, u8 bw)
+{
+        if (bw == RTW_CHANNEL_WIDTH_40) {
+                /* RX DFIR for BW40 */
+                rtw_write32_mask(rtwdev, REG_ACBB0, BIT(29) | BIT(28), 0x1);
+                rtw_write32_mask(rtwdev, REG_ACBBRXFIR, BIT(29) | BIT(28), 0x0);
+                rtw_write32s_mask(rtwdev, REG_TXDFIR, BIT(31), 0x0);
+        } else if (bw == RTW_CHANNEL_WIDTH_80) {
+                /* RX DFIR for BW80 */
+                rtw_write32_mask(rtwdev, REG_ACBB0, BIT(29) | BIT(28), 0x2);
+                rtw_write32_mask(rtwdev, REG_ACBBRXFIR, BIT(29) | BIT(28), 0x1);
+                rtw_write32s_mask(rtwdev, REG_TXDFIR, BIT(31), 0x0);
+        } else {
+                /* RX DFIR for BW20, BW10 and BW5*/
+                rtw_write32_mask(rtwdev, REG_ACBB0, BIT(29) | BIT(28), 0x2);
+                rtw_write32_mask(rtwdev, REG_ACBBRXFIR, BIT(29) | BIT(28), 0x2);
+                rtw_write32s_mask(rtwdev, REG_TXDFIR, BIT(31), 0x1);
+        }
+}
+
+static const u8 low_band[15] = {0x7, 0x6, 0x6, 0x5, 0x0, 0x0, 0x7, 0xff, 0x6,
+                                0x5, 0x0, 0x0, 0x7, 0x6, 0x6};
+static const u8 middle_band[23] = {0x6, 0x5, 0x0, 0x0, 0x7, 0x6, 0x6, 0xff, 0x0,
+                                   0x0, 0x7, 0x6, 0x6, 0x5, 0x0, 0xff, 0x7, 0x6,
+                                   0x6, 0x5, 0x0, 0x0, 0x7};
+static const u8 high_band[15] = {0x5, 0x5, 0x0, 0x7, 0x7, 0x6, 0x5, 0xff, 0x0,
+                                 0x7, 0x7, 0x6, 0x5, 0x5, 0x0};
+
+static void rtw8822b_set_channel_rf(struct rtw_dev *rtwdev, u8 channel, u8 bw)
+{
+#define RF18_BAND_MASK          (BIT(16) | BIT(9) | BIT(8))
+#define RF18_BAND_2G            (0)
+#define RF18_BAND_5G            (BIT(16) | BIT(8))
+#define RF18_CHANNEL_MASK       (MASKBYTE0)
+#define RF18_RFSI_MASK          (BIT(18) | BIT(17))
+#define RF18_RFSI_GE_CH80       (BIT(17))
+#define RF18_RFSI_GT_CH144      (BIT(18))
+#define RF18_BW_MASK            (BIT(11) | BIT(10))
+#define RF18_BW_20M             (BIT(11) | BIT(10))
+#define RF18_BW_40M             (BIT(11))
+#define RF18_BW_80M             (BIT(10))
+#define RFBE_MASK               (BIT(17) | BIT(16) | BIT(15))
+
+        struct rtw_hal *hal = &rtwdev->hal;
+        u32 rf_reg18, rf_reg_be;
+
+        rf_reg18 = rtw_read_rf(rtwdev, RF_PATH_A, 0x18, RFREG_MASK);
+
+        rf_reg18 &= ~(RF18_BAND_MASK | RF18_CHANNEL_MASK | RF18_RFSI_MASK |
+                      RF18_BW_MASK);
+
+        rf_reg18 |= (IS_CH_2G_BAND(channel) ? RF18_BAND_2G : RF18_BAND_5G);
+        rf_reg18 |= (channel & RF18_CHANNEL_MASK);
+        if (channel > 144)
+                rf_reg18 |= RF18_RFSI_GT_CH144;
+        else if (channel >= 80)
+                rf_reg18 |= RF18_RFSI_GE_CH80;
+
+        switch (bw) {
+        case RTW_CHANNEL_WIDTH_5:
+        case RTW_CHANNEL_WIDTH_10:
+        case RTW_CHANNEL_WIDTH_20:
+        default:
+                rf_reg18 |= RF18_BW_20M;
+                break;
+        case RTW_CHANNEL_WIDTH_40:
+                rf_reg18 |= RF18_BW_40M;
+                break;
+        case RTW_CHANNEL_WIDTH_80:
+                rf_reg18 |= RF18_BW_80M;
+                break;
+        }
+
+        if (IS_CH_2G_BAND(channel))
+                rf_reg_be = 0x0;
+        else if (IS_CH_5G_BAND_1(channel) || IS_CH_5G_BAND_2(channel))
+                rf_reg_be = low_band[(channel - 36) >> 1];
+        else if (IS_CH_5G_BAND_3(channel))
+                rf_reg_be = middle_band[(channel - 100) >> 1];
+        else if (IS_CH_5G_BAND_4(channel))
+                rf_reg_be = high_band[(channel - 149) >> 1];
+        else
+                goto err;
+
+        rtw_write_rf(rtwdev, RF_PATH_A, RF_MALSEL, RFBE_MASK, rf_reg_be);
+
+        /* need to set 0xdf[18]=1 before writing RF18 when channel 144 */
+        if (channel == 144)
+                rtw_write_rf(rtwdev, RF_PATH_A, RF_LUTDBG, BIT(18), 0x1);
+        else
+                rtw_write_rf(rtwdev, RF_PATH_A, RF_LUTDBG, BIT(18), 0x0);
+
+        rtw_write_rf(rtwdev, RF_PATH_A, 0x18, RFREG_MASK, rf_reg18);
+        if (hal->rf_type > RF_1T1R)
+                rtw_write_rf(rtwdev, RF_PATH_B, 0x18, RFREG_MASK, rf_reg18);
+
+        rtw_write_rf(rtwdev, RF_PATH_A, RF_XTALX2, BIT(19), 0);
+        rtw_write_rf(rtwdev, RF_PATH_A, RF_XTALX2, BIT(19), 1);
+
+        return;
+
+err:
+//        WARN_ON(1);
+	printf("%s: WARNING\n", __func__);
+}
+
+
+void rtw_set_channel_mac(struct rtw_dev *rtwdev, u8 channel, u8 bw,
+                         u8 primary_ch_idx)
+{
+        u8 txsc40 = 0, txsc20 = 0;
+        u32 value32;
+        u8 value8;
+
+        txsc20 = primary_ch_idx;
+        if (bw == RTW_CHANNEL_WIDTH_80) {
+                if (txsc20 == RTW_SC_20_UPPER || txsc20 == RTW_SC_20_UPMOST)
+                        txsc40 = RTW_SC_40_UPPER;
+                else
+                        txsc40 = RTW_SC_40_LOWER;
+        }
+        rtw_write8(rtwdev, REG_DATA_SC,
+                   BIT_TXSC_20M(txsc20) | BIT_TXSC_40M(txsc40));
+
+        value32 = rtw_read32(rtwdev, REG_WMAC_TRXPTCL_CTL);
+        value32 &= ~BIT_RFMOD;
+        switch (bw) {
+        case RTW_CHANNEL_WIDTH_80:
+                value32 |= BIT_RFMOD_80M;
+                break;
+        case RTW_CHANNEL_WIDTH_40:
+                value32 |= BIT_RFMOD_40M;
+                break;
+        case RTW_CHANNEL_WIDTH_20:
+        default:
+                break;
+        }
+        rtw_write32(rtwdev, REG_WMAC_TRXPTCL_CTL, value32);
+
+        if (rtw_chip_wcpu_11n(rtwdev))
+                return;
+
+        value32 = rtw_read32(rtwdev, REG_AFE_CTRL1) & ~(BIT_MAC_CLK_SEL);
+        value32 |= (MAC_CLK_HW_DEF_80M << BIT_SHIFT_MAC_CLK_SEL);
+        rtw_write32(rtwdev, REG_AFE_CTRL1, value32);
+
+        rtw_write8(rtwdev, REG_USTIME_TSF, MAC_CLK_SPEED);
+        rtw_write8(rtwdev, REG_USTIME_EDCA, MAC_CLK_SPEED);
+
+        value8 = rtw_read8(rtwdev, REG_CCK_CHECK);
+        value8 = value8 & ~BIT_CHECK_CCK_EN;
+        if (IS_CH_5G_BAND(channel))
+                value8 |= BIT_CHECK_CCK_EN;
+        rtw_write8(rtwdev, REG_CCK_CHECK, value8);
+}
+
+static void rtw8822b_set_channel_bb(struct rtw_dev *rtwdev, u8 channel, u8 bw,
+                                    u8 primary_ch_idx)
+{
+//        struct rtw_efuse *efuse = &rtwdev->efuse;
+//        u8 rfe_option = efuse->rfe_option;
+        u32 val32;
+
+        if (IS_CH_2G_BAND(channel)) {
+                rtw_write32_mask(rtwdev, REG_RXPSEL, BIT(28), 0x1);
+                rtw_write32_mask(rtwdev, REG_CCK_CHECK, BIT(7), 0x0);
+                rtw_write32_mask(rtwdev, REG_ENTXCCK, BIT(18), 0x0);
+                rtw_write32_mask(rtwdev, REG_RXCCAMSK, 0x0000FC00, 15);
+
+                rtw_write32_mask(rtwdev, REG_ACGG2TBL, 0x1f, 0x0);
+                rtw_write32_mask(rtwdev, REG_CLKTRK, 0x1ffe0000, 0x96a);
+                if (channel == 14) {
+                        rtw_write32_mask(rtwdev, REG_TXSF2, MASKDWORD, 0x00006577);
+                        rtw_write32_mask(rtwdev, REG_TXSF6, MASKLWORD, 0x0000);
+                } else {
+                        rtw_write32_mask(rtwdev, REG_TXSF2, MASKDWORD, 0x384f6577);
+                        rtw_write32_mask(rtwdev, REG_TXSF6, MASKLWORD, 0x1525);
+                }
+
+                rtw_write32_mask(rtwdev, REG_RFEINV, 0x300, 0x2);
+        } else if (IS_CH_5G_BAND(channel)) {
+		printf("%s: MUST TODO\n", __func__);
+//                rtw_write32_mask(rtwdev, REG_ENTXCCK, BIT(18), 0x1);
+//                rtw_write32_mask(rtwdev, REG_CCK_CHECK, BIT(7), 0x1);
+//                rtw_write32_mask(rtwdev, REG_RXPSEL, BIT(28), 0x0);
+//                rtw_write32_mask(rtwdev, REG_RXCCAMSK, 0x0000FC00, 34);
+//
+//                if (IS_CH_5G_BAND_1(channel) || IS_CH_5G_BAND_2(channel))
+//                        rtw_write32_mask(rtwdev, REG_ACGG2TBL, 0x1f, 0x1);
+//                else if (IS_CH_5G_BAND_3(channel))
+//                        rtw_write32_mask(rtwdev, REG_ACGG2TBL, 0x1f, 0x2);
+//                else if (IS_CH_5G_BAND_4(channel))
+//                        rtw_write32_mask(rtwdev, REG_ACGG2TBL, 0x1f, 0x3);
+//
+//                if (IS_CH_5G_BAND_1(channel))
+//                        rtw_write32_mask(rtwdev, REG_CLKTRK, 0x1ffe0000, 0x494);
+//                else if (IS_CH_5G_BAND_2(channel))
+//                        rtw_write32_mask(rtwdev, REG_CLKTRK, 0x1ffe0000, 0x453);
+//                else if (channel >= 100 && channel <= 116)
+//                        rtw_write32_mask(rtwdev, REG_CLKTRK, 0x1ffe0000, 0x452);
+//                else if (channel >= 118 && channel <= 177)
+//                        rtw_write32_mask(rtwdev, REG_CLKTRK, 0x1ffe0000, 0x412);
+//
+//                rtw_write32_mask(rtwdev, 0xcbc, 0x300, 0x1);
+        }
+
+        switch (bw) {
+        case RTW_CHANNEL_WIDTH_20:
+        default:
+                val32 = rtw_read32_mask(rtwdev, REG_ADCCLK, MASKDWORD);
+                val32 &= 0xFFCFFC00;
+                val32 |= (RTW_CHANNEL_WIDTH_20);
+                rtw_write32_mask(rtwdev, REG_ADCCLK, MASKDWORD, val32);
+
+                rtw_write32_mask(rtwdev, REG_ADC160, BIT(30), 0x1);
+                break;
+//        case RTW_CHANNEL_WIDTH_40:
+//                if (primary_ch_idx == RTW_SC_20_UPPER)
+//                        rtw_write32_set(rtwdev, REG_RXSB, BIT(4));
+//                else
+//                        rtw_write32_clr(rtwdev, REG_RXSB, BIT(4));
+//
+//                val32 = rtw_read32_mask(rtwdev, REG_ADCCLK, MASKDWORD);
+//                val32 &= 0xFF3FF300;
+//                val32 |= (((primary_ch_idx & 0xf) << 2) | RTW_CHANNEL_WIDTH_40);
+//                rtw_write32_mask(rtwdev, REG_ADCCLK, MASKDWORD, val32);
+//
+//                rtw_write32_mask(rtwdev, REG_ADC160, BIT(30), 0x1);
+//                break;
+//        case RTW_CHANNEL_WIDTH_80:
+//                val32 = rtw_read32_mask(rtwdev, REG_ADCCLK, MASKDWORD);
+//                val32 &= 0xFCEFCF00;
+//                val32 |= (((primary_ch_idx & 0xf) << 2) | RTW_CHANNEL_WIDTH_80);
+//                rtw_write32_mask(rtwdev, REG_ADCCLK, MASKDWORD, val32);
+//
+//                rtw_write32_mask(rtwdev, REG_ADC160, BIT(30), 0x1);
+//
+//                if (rfe_option == 2 || rfe_option == 3) {
+//                        rtw_write32_mask(rtwdev, REG_L1PKWT, 0x0000f000, 0x6);
+//                        rtw_write32_mask(rtwdev, REG_ADC40, BIT(10), 0x1);
+//                }
+//                break;
+//        case RTW_CHANNEL_WIDTH_5:
+//                val32 = rtw_read32_mask(rtwdev, REG_ADCCLK, MASKDWORD);
+//                val32 &= 0xEFEEFE00;
+//                val32 |= ((BIT(6) | RTW_CHANNEL_WIDTH_20));
+//                rtw_write32_mask(rtwdev, REG_ADCCLK, MASKDWORD, val32);
+//
+//                rtw_write32_mask(rtwdev, REG_ADC160, BIT(30), 0x0);
+//                rtw_write32_mask(rtwdev, REG_ADC40, BIT(31), 0x1);
+//                break;
+//        case RTW_CHANNEL_WIDTH_10:
+//                val32 = rtw_read32_mask(rtwdev, REG_ADCCLK, MASKDWORD);
+//                val32 &= 0xEFFEFF00;
+//                val32 |= ((BIT(7) | RTW_CHANNEL_WIDTH_20));
+//                rtw_write32_mask(rtwdev, REG_ADCCLK, MASKDWORD, val32);
+//
+//                rtw_write32_mask(rtwdev, REG_ADC160, BIT(30), 0x0);
+//                rtw_write32_mask(rtwdev, REG_ADC40, BIT(31), 0x1);
+//                break;
+        }
+}
+
+
+static void rtw8822b_set_channel(struct rtw_dev *rtwdev, u8 channel, u8 bw,
+                                 u8 primary_chan_idx)
+{
+        struct rtw_efuse *efuse = &rtwdev->efuse;
+        const struct rtw8822b_rfe_info *rfe_info;
+
+//        if (WARN(efuse->rfe_option >= ARRAY_SIZE(rtw8822b_rfe_info),
+//                 "rfe_option %d is out of boundary\n", efuse->rfe_option))
+//                return;
+	if (efuse->rfe_option >= ARRAY_SIZE(rtw8822b_rfe_info)) {
+		printf("%s: rfe_option %d is out of boundary\n", __func__, efuse->rfe_option);
+		return;
+	}
+
+        rfe_info = &rtw8822b_rfe_info[efuse->rfe_option];
+
+	rtw8822b_set_channel_bb(rtwdev, channel, bw, primary_chan_idx);
+	rtw_set_channel_mac(rtwdev, channel, bw, primary_chan_idx);
+	rtw8822b_set_channel_rf(rtwdev, channel, bw);
+	rtw8822b_set_channel_rxdfir(rtwdev, bw);
+	rtw8822b_toggle_igi(rtwdev);
+	rtw8822b_set_channel_cca(rtwdev, channel, bw, rfe_info);
+	(*rfe_info->rtw_set_channel_rfe)(rtwdev, channel);
+}
+
+
 void rtw_update_channel(struct rtw_dev *rtwdev, u8 center_channel,
                         u8 primary_channel, enum rtw_supported_band band,
                         enum rtw_bandwidth bandwidth)
@@ -30963,9 +31255,9 @@ void rtw_update_channel(struct rtw_dev *rtwdev, u8 center_channel,
 // XXX: We scan only channel 1
 void rtw_set_channel(struct rtw_dev *rtwdev)
 {
-//        const struct rtw_chip_info *chip = rtwdev->chip;
+	const struct rtw_chip_info *chip = rtwdev->chip;
 //        struct ieee80211_hw *hw = rtwdev->hw;
-//        struct rtw_hal *hal = &rtwdev->hal;
+	struct rtw_hal *hal = &rtwdev->hal;
 //        struct rtw_channel_params ch_param;
         u8 center_chan, primary_chan, bandwidth, band;
 
@@ -30988,8 +31280,8 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 //        if (rtwdev->scan_info.op_chan)
 //                rtw_store_op_chan(rtwdev, true);
 //
-//        chip->ops->set_channel(rtwdev, center_chan, bandwidth,
-//                               hal->current_primary_channel_index);
+	chip->ops->set_channel(rtwdev, center_chan, bandwidth,
+	    hal->current_primary_channel_index);
 //
 //        if (hal->current_band_type == RTW_BAND_5G) {
 //                rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_5G);
