@@ -23251,6 +23251,12 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+struct urtwm_rx_data {
+	struct urtwm_softc *sc;
+	struct usbd_xfer *xfer;
+	uint8_t *buf;
+};
+
 enum rtw_sar_bands {
         RTW_SAR_BAND_0,
         RTW_SAR_BAND_1,
@@ -26282,11 +26288,20 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
         return sc->qsel_to_ep[qsel];
 }
 
+#define GET_RX_DESC_PKT_LEN(rxdesc)					\
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), GENMASK(13, 0))
 void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
 	printf("%s: RX status=%d\n", __func__, status);
+
+	struct urtwm_rx_data *data = priv;
+	uint32_t pkt_len;
+
+	pkt_len = GET_RX_DESC_PKT_LEN(data->buf);
+
+	printf("%s: pkt_len=%d\n", __func__, pkt_len);
 }
 void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
@@ -28746,6 +28761,14 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 				return EINVAL;
 			}
 			// FIXME: just checking
+			struct urtwm_rx_data *data;
+			data = malloc(sizeof(struct urtwm_rx_data), M_DEVBUF, M_NOWAIT);
+			if (data == NULL) {
+				printf("%s: could not alloc data mem\n", __func__);
+				return ENOMEM;
+			}
+			memset(data, 0, sizeof(struct urtwm_rx_data));
+
 			struct usbd_xfer                *xfer;
 			uint8_t *buf;
 			xfer = usbd_alloc_xfer(sc->sc_udev);
@@ -28754,6 +28777,12 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 				return ENOMEM;
 			}
 			buf = usbd_alloc_buffer(xfer, 16 * 1024);
+
+			// XXX: fill temp buffer
+			data->sc = sc;
+			data->xfer = xfer;
+			data->buf = buf;
+
 			if (buf == NULL) {
 				printf("%s: could not alloc buffer\n", __func__);
 				return ENOMEM;
@@ -28761,7 +28790,7 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 			//	for (int i = 0; i < m->m_len; i++) {
 			//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 			//	}
-			usbd_setup_xfer(xfer, sc->rx_pipe, NULL, buf, 16 * 1024,
+			usbd_setup_xfer(xfer, sc->rx_pipe, data, buf, 16 * 1024,
 			    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
 			    urtwm_rxeof);
 			error = usbd_transfer(xfer);
