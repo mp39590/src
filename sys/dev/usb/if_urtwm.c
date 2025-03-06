@@ -1,5 +1,9 @@
 #define MYQUEUE TX_DESC_QSEL_HIGH
 
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wunused-label"
+
 #include "bpfilter.h"
 
 #include <sys/param.h>
@@ -26353,10 +26357,10 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 	};
 
 	if (qsel == MYQUEUE) {
-		printf("%s: sizeof(mybuf)=%zu\n", __func__, sizeof(mybuf));
+//		printf("%s: sizeof(mybuf)=%zu\n", __func__, sizeof(mybuf));
 		memcpy(buf, mybuf, sizeof(mybuf));
 	} else {
-		printf("%s: sizeof(mybuf)=%d\n", __func__, m->m_len);
+//		printf("%s: sizeof(mybuf)=%d\n", __func__, m->m_len);
 		memcpy(buf, m->m_data, m->m_len);
 	}
 //	printf("%s: m->m_len=%d\n", __func__, m->m_len);
@@ -27043,7 +27047,7 @@ int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
 {
 	u8 bckp[2];
 	u8 val;
-//	  u16 rsvd_pg_head;
+	u16 rsvd_pg_head;
 	u32 bcn_valid_addr;
 	u32 bcn_valid_mask;
 	int ret;
@@ -27096,13 +27100,13 @@ int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
 		ret = -EBUSY;
 	}
 
-//restore:
-//	  rsvd_pg_head = rtwdev->fifo.rsvd_boundary;
-//	  rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2,
-//		      rsvd_pg_head | BIT_BCN_VALID_V1);
-//	  if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_PCIE)
-//		  rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, bckp[1]);
-//	  rtw_write8(rtwdev, REG_CR + 1, bckp[0]);
+restore:
+	rsvd_pg_head = rtwdev->fifo.rsvd_boundary;
+	rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2,
+	    rsvd_pg_head | BIT_BCN_VALID_V1);
+//	if (rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_PCIE)
+//		rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, bckp[1]);
+	rtw_write8(rtwdev, REG_CR + 1, bckp[0]);
 
 	return ret;
 }
@@ -27880,6 +27884,14 @@ rtw88_mac_power_switch(struct rtw_dev *rtwdev, int pwr_on)
 
 	pwr_seq = pwr_on ? chip->pwr_on_seq : chip->pwr_off_seq;
 	ret = rtw88_pwr_seq_parser(rtwdev, pwr_seq);
+
+	// XXX FROMNEW
+        if (pwr_on && rtw_hci_type(rtwdev) == RTW88_HCI_TYPE_USB) {
+                if (chip->id == RTW_CHIP_TYPE_8822C ||
+                    chip->id == RTW_CHIP_TYPE_8822B ||
+                    chip->id == RTW_CHIP_TYPE_8821C)
+                        rtw_write8_clr(rtwdev, REG_SYS_STATUS1 + 1, BIT(0));
+        }
 
 	// TODO
 //	if (rtw88_hci_type(rtwdev) == RTW88_HCI_TYPE_SDIO)
