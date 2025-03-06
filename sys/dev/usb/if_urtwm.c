@@ -26288,20 +26288,97 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
         return sc->qsel_to_ep[qsel];
 }
 
-#define GET_RX_DESC_PKT_LEN(rxdesc)					\
+#define GET_RX_DESC_PHYST(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), BIT(26))
+#define GET_RX_DESC_ICV_ERR(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), BIT(15))
+#define GET_RX_DESC_CRC32(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), BIT(14))
+#define GET_RX_DESC_SWDEC(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), BIT(27))
+#define GET_RX_DESC_C2H(rxdesc)						       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x02), BIT(28))
+#define GET_RX_DESC_PKT_LEN(rxdesc)					       \
 	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), GENMASK(13, 0))
+#define GET_RX_DESC_DRV_INFO_SIZE(rxdesc)				       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), GENMASK(19, 16))
+#define GET_RX_DESC_SHIFT(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), GENMASK(25, 24))
+#define GET_RX_DESC_ENC_TYPE(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x00), GENMASK(22, 20))
+#define GET_RX_DESC_RX_RATE(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x03), GENMASK(6, 0))
+#define GET_RX_DESC_MACID(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x01), GENMASK(6, 0))
+#define GET_RX_DESC_PPDU_CNT(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x02), GENMASK(30, 29))
+#define GET_RX_DESC_TSFL(rxdesc)					       \
+	le32_get_bits(*((__le32 *)(rxdesc) + 0x05), GENMASK(31, 0))
+#define GET_RX_DESC_BW(rxdesc)						       \
+	(le32_get_bits(*((__le32 *)(rxdesc) + 0x04), GENMASK(5, 4)))
+
 void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
 	printf("%s: RX status=%d\n", __func__, status);
 
+	struct mbuf_list ml = MBUF_LIST_INITIALIZER();
 	struct urtwm_rx_data *data = priv;
+	struct urtwm_softc *sc = data->sc;
+	struct ieee80211com *ic = &sc->sc_ic;
+	struct ifnet *ifp = &ic->ic_if;
+	struct ieee80211_frame *wh;
+	struct ieee80211_node *ni;
+	struct ieee80211_rxinfo rxi;
+	struct mbuf *m;
 	uint32_t pkt_len;
+	uint32_t pkt_offset = 56; /* got from linux dump */
+	int s;
+	int is_c2h = 0;
 
 	pkt_len = GET_RX_DESC_PKT_LEN(data->buf);
+	is_c2h = GET_RX_DESC_C2H(data->buf);
 
 	printf("%s: pkt_len=%d\n", __func__, pkt_len);
+	printf("%s: is_c2h=%d\n", __func__, is_c2h);
+
+	MGETHDR(m, M_DONTWAIT, MT_DATA);
+	if (__predict_false(m == NULL)) {
+		printf("%s: m is NULL\n", __func__);
+		return;
+	}
+	if (pkt_len > MHLEN) {
+		MCLGET(m, M_DONTWAIT);
+		if (__predict_false(!(m->m_flags & M_EXT))) {
+			printf("%s: !M_EXT\n", __func__);
+			m_freem(m);
+			return;
+		}
+	}
+
+	wh = (struct ieee80211_frame *)((uint8_t *)(data->buf) + pkt_offset);
+	memcpy(mtod(m, uint8_t *), wh, pkt_len);
+	m->m_pkthdr.len = m->m_len = pkt_len;
+//	for (int i = 0; i < pkt_len; i++)
+//		printf("0x%x ", (uint8_t)m->m_data[i]);
+//	printf("\n");
+
+	ieee80211_dump_pkt((uint8_t *)wh, pkt_len, 0, 0);
+
+	s = splnet();
+
+	ni = ieee80211_find_rxnode(ic, wh);
+	memset(&rxi, 0, sizeof(rxi));
+	rxi.rxi_rssi = 57;
+	rxi.rxi_chan = 1;
+
+	ieee80211_inputm(ifp, m, ni, &rxi, &ml);
+	ieee80211_release_node(ic, ni);
+
+	splx(s);
+
+	if_input(&ic->ic_if, &ml);
 }
 void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
