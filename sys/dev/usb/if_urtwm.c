@@ -1,3 +1,5 @@
+#define MYQUEUE TX_DESC_QSEL_HIGH
+
 #include "bpfilter.h"
 
 #include <sys/param.h>
@@ -26334,16 +26336,39 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 		return ENOMEM;
 	}
 	pipe = sc->tx_pipe[ep];
-//	if (qsel == TX_DESC_QSEL_MGMT)
+//	if (qsel == MYQUEUE)
 //		usbd_dump_pipe(pipe);
 //	for (int i = 0; i < m->m_len; i++) {
 //		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 //	}
-	memcpy(buf, m->m_data, m->m_len);
+	char mybuf[] = {
+0x49,0x00,0x30,0x85,0x00,0x12,0x08,0x00,0x00,0x00,0x00,0x00,0x00,0x05,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x71,0x92,0x00,0x00,
+0x00,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x40,0x00,0x00,0x00,0xff,0xff,0xff,0xff,0xff,0xff,0x9c,0x53,0x22,0x4d,0xfc,0xf3,
+0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x01,0x08,0x02,0x04,0x0b,0x16,
+0x0c,0x12,0x18,0x24,0x32,0x04,0x30,0x48,0x60,0x6c,0x03,0x01,0x01,0x2d,0x1a,0x6f,
+0x19,0x13,0xff,0xff,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x2c,0x01,0x01,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+	};
+
+	if (qsel == MYQUEUE) {
+		printf("%s: sizeof(mybuf)=%zu\n", __func__, sizeof(mybuf));
+		memcpy(buf, mybuf, sizeof(mybuf));
+	} else {
+		printf("%s: sizeof(mybuf)=%d\n", __func__, m->m_len);
+		memcpy(buf, m->m_data, m->m_len);
+	}
 //	printf("%s: m->m_len=%d\n", __func__, m->m_len);
-	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
-	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
-	    urtwm_txeof);
+	if (qsel == MYQUEUE) {
+		usbd_setup_xfer(xfer, pipe, NULL, buf, sizeof(mybuf),
+		    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
+		    urtwm_txeof);
+	} else {
+		usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
+		    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
+		    urtwm_txeof);
+	}
 	error = usbd_transfer(xfer);
 //	printf("%s: error=%i\n", __func__, error);
 
@@ -26395,9 +26420,9 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	m->m_nextpkt = NULL;
 	m->m_type = 0;
 	m->m_flags = 0;
-	if (qsel == TX_DESC_QSEL_MGMT) {
+	if (qsel == MYQUEUE) {
 		printf("%s: will send qsel=%i\n", __func__, qsel);
-                rtw_tx_mgmt_pkt_info_update(rtwdev, pkt_info);
+//                rtw_tx_mgmt_pkt_info_update(rtwdev, pkt_info);
                 printf("%s: pkt_info->bmc=%i\n", __func__, pkt_info->bmc);
 	}
 	rtw_tx_fill_tx_desc(pkt_info, data);
@@ -31374,7 +31399,8 @@ int rtw_usb_tx_write(struct rtw_dev *rtwdev,
 //
 //        pkt_info->qsel = rtw_usb_tx_queue_mapping_to_qsel(skb);
 	// TODO: set manually
-        pkt_info->qsel = TX_DESC_QSEL_MGMT;
+//        pkt_info->qsel = TX_DESC_QSEL_MGMT;
+        pkt_info->qsel = MYQUEUE;
 //        pkt_desc = skb_push(skb, chip->tx_pkt_desc_sz);
 //        memset(pkt_desc, 0, chip->tx_pkt_desc_sz);
 //        ep = qsel_to_ep(rtwusb, pkt_info->qsel);
@@ -31553,7 +31579,7 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		// ubutntu)
 //		rtw_ops_hw_scan(rtwdev);
 		IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
-		rtw_core_scan_start(rtwdev, &*mac_addr, false);
+		rtw_core_scan_start(rtwdev, mac_addr, false);
 
 		rtw_set_channel(rtwdev);
 		break;
