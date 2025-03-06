@@ -26491,7 +26491,7 @@ static int rtw_usb_write_data_rsvd_page(struct rtw_dev *rtwdev, u8 *buf,
 	pkt_info.qsel = TX_DESC_QSEL_BEACON;
 	pkt_info.offset = chip->tx_pkt_desc_sz;
 	// TODO: linux 85bf3041a0ea4
-//	pkt_info.ls = true;
+	pkt_info.ls = true;
 
 	return rtw_usb_write_data(rtwdev, &pkt_info, buf);
 }
@@ -26557,10 +26557,13 @@ static inline void
 rtw_write32_mask(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 data)
 {
         u32 shift = __ffs(mask);
+//        printf("%s: shift=%d\n", __func__, shift);
         u32 orig;
         u32 set;
 
 //        WARN(addr & 0x3, "should be 4-byte aligned, addr = 0x%08x\n", addr);
+	if (addr & 0x3)
+		printf("%s: should be 4-byte aligned, addr = 0x%08x\n", __func__, addr);
 
         orig = rtw_read32(rtwdev, addr);
         set = (orig & ~mask) | ((data << shift) & mask);
@@ -27845,6 +27848,7 @@ rtw88_pwr_seq_parser(struct rtw_dev *rtwdev,
 int
 rtw88_mac_power_switch(struct rtw_dev *rtwdev, int pwr_on)
 {
+//	printf("%s: pwr_on=%i\n", __func__, pwr_on);
 	const struct rtw88_chip_info *chip = rtwdev->chip;
 	const struct rtw88_pwr_seq_cmd **pwr_seq;
 //	uint32_t imr = 0;
@@ -27862,16 +27866,20 @@ rtw88_mac_power_switch(struct rtw_dev *rtwdev, int pwr_on)
 		}
 	}
 
-	if (rtw88_read8(rtwdev, RTW88_REG_CR) == 0xea)
+	if (rtw88_read8(rtwdev, RTW88_REG_CR) == 0xea) {
+//		printf("%s: RTW88_REG_CR == 0xea\n", __func__);
 		cur_pwr = 0;
+	}
 	else if (rtw88_hci_type(rtwdev) == RTW88_HCI_TYPE_USB &&
 	    (rtw88_read8(rtwdev, RTW88_REG_SYS_STATUS1 + 1) & BIT(0)))
 		cur_pwr = 0;
 	else
 		cur_pwr = 1;
 
-	if (pwr_on == cur_pwr)
+	if (pwr_on == cur_pwr) {
+		printf("%s: will return EALREADY\n", __func__);
 		return EALREADY;
+	}
 
 	// TODO
 //	if (rtw88_hci_type(rtwdev) == RTW88_HCI_TYPE_SDIO) {
@@ -27897,6 +27905,7 @@ rtw88_mac_power_switch(struct rtw_dev *rtwdev, int pwr_on)
 //	if (rtw88_hci_type(rtwdev) == RTW88_HCI_TYPE_SDIO)
 //		rtw88_write32(rtwdev, RTW88_RTW_REG_SDIO_HIMR, imr);
 
+//	printf("%s: ret=%i\n", __func__, ret);
 	if (!ret && pwr_on)
 		set_bit(RTW_FLAG_POWERON, rtwdev->flags);
 
@@ -28007,6 +28016,8 @@ rtw88_mac_power_on(struct rtw_dev *rtwdev)
 	} else if (ret) {
 		goto err;
 	}
+
+//	printf("%s: RTW88_REG_CR=0x%x\n", __func__, rtw88_read8(rtwdev, RTW88_REG_CR));
 
 	ret = rtw88_mac_init_system_cfg(rtwdev);
 	if (ret)
@@ -30589,26 +30600,26 @@ int rtw_power_on(struct rtw_dev *rtwdev)
 		printf("%s: failed to configure mac\n", __func__);
 		goto err_off;
 	}
-//
+////
 	chip->ops->phy_set_param(rtwdev);
-// 	XXX: rtw_usb_start just returns zero
+	//XXX: rtw_usb_start just returns zero
 //        ret = rtw_hci_start(rtwdev);
 //        if (ret) {
 //                rtw_err(rtwdev, "failed to start hci\n");
 //                goto err_off;
 //        }
-//
+
 	/* send H2C after HCI has started */
 	rtw_fw_send_general_info(rtwdev);
 	rtw_fw_send_phydm_info(rtwdev);
 
 	// XXX TODO NO COEX FOR NOW, LETS LOOK IF IT WORKS
-//	wifi_only = !rtwdev->efuse.btcoex;
-//	rtw_coex_power_on_setting(rtwdev);
-//        rtw_coex_init_hw_config(rtwdev, wifi_only);
-//
-//        return 0;
-//
+////	wifi_only = !rtwdev->efuse.btcoex;
+////	rtw_coex_power_on_setting(rtwdev);
+////        rtw_coex_init_hw_config(rtwdev, wifi_only);
+////
+	return 0;
+////
 err_off:
 	rtw_mac_power_off(rtwdev);
 //
