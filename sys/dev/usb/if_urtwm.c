@@ -31492,7 +31492,7 @@ void rtw_update_channel(struct rtw_dev *rtwdev, u8 center_channel,
 	// TODO: only 2GHZ Channels
 	center_freq = ieee80211_ieee2mhz(center_channel, IEEE80211_CHAN_2GHZ);
 	primary_freq = ieee80211_ieee2mhz(primary_channel, IEEE80211_CHAN_2GHZ);
-	printf("%s: center_freq=%d\n primary_freq=%d\n", __func__, center_freq, primary_freq);
+	printf("%s: center_freq=%d primary_freq=%d\n", __func__, center_freq, primary_freq);
 
         /* assign the center channel used while 20M bw is selected */
         cch_by_bw[RTW_CHANNEL_WIDTH_20] = primary_channel;
