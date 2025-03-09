@@ -23251,6 +23251,25 @@ RTW_DECL_TABLE_RF_RADIO(rtw8822b_rf_b, B);
 
 // {{{ data structures
 
+struct urtwm_cmd_newstate {
+	enum ieee80211_state	state;
+	int			arg;
+};
+
+struct urtwm_host_cmd {
+	void	(*cb)(struct urtwm_softc *, void *);
+	uint8_t	data[256];
+};
+
+#define URTWM_HOST_CMD_RING_COUNT 32
+
+struct urtwm_host_cmd_ring {
+	struct urtwm_host_cmd	cmd[URTWM_HOST_CMD_RING_COUNT];
+	int			cur;
+	int			next;
+	int			queued;
+};
+
 struct urtwm_rx_data {
 	struct urtwm_softc *sc;
 	struct usbd_xfer *xfer;
@@ -25782,6 +25801,7 @@ struct urtwm_softc {
 	int (*sc_newstate)(struct ieee80211com *, enum ieee80211_state, int);
 
 	struct timeout			scan_to;
+	struct urtwm_host_cmd_ring	cmdq;
 };
 
 // }}}
@@ -26987,6 +27007,44 @@ urtwm_match(struct device *parent, void *match, void *aux)
 void
 urtwm_task(void *arg)
 {
+	struct urtwm_softc *sc = arg;
+	struct urtwm_host_cmd_ring *ring = &sc->cmdq;
+	struct urtwm_host_cmd *cmd;
+	int s;
+
+	/* Process host commands. */
+	s = splusb();
+	while (ring->next != ring->cur) {
+		cmd = &ring->cmd[ring->next];
+		splx(s);
+		/* Invoke callback. */
+		cmd->cb(sc, cmd->data);
+		s = splusb();
+		ring->queued--;
+		ring->next = (ring->next + 1) % URTWM_HOST_CMD_RING_COUNT;
+	}
+	splx(s);
+}
+
+void
+urtwm_do_async(struct urtwm_softc *sc,
+    void (*cb)(struct urtwm_softc *, void *), void *arg, int len)
+{
+	struct urtwm_host_cmd_ring *ring = &sc->cmdq;
+	struct urtwm_host_cmd *cmd;
+	int s;
+
+	s = splusb();
+	cmd = &ring->cmd[ring->cur];
+	cmd->cb = cb;
+	KASSERT(len <= sizeof(cmd->data));
+	memcpy(cmd->data, arg, len);
+	ring->cur = (ring->cur + 1) % URTWM_HOST_CMD_RING_COUNT;
+
+	/* If there is no pending command already, schedule a task. */
+	if (++ring->queued == 1)
+		usb_add_task(sc->sc_udev, &sc->sc_task);
+	splx(s);
 }
 
 // }}}
@@ -31719,7 +31777,7 @@ urtwm_scan_to(void *arg)
 }
 
 int
-urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
+rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
 	struct urtwm_softc *sc = ic->ic_softc;
 	struct rtw88_softc *sc_sc = &sc->sc_sc;
@@ -31758,6 +31816,29 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	splx(s);
 
 	return (error);
+}
+
+void
+urtwm_newstate_cb(struct urtwm_softc *sc, void *arg)
+{
+	struct urtwm_cmd_newstate *cmd = arg;
+	struct ieee80211com *ic = &sc->sc_ic;
+
+	printf("%s: cmd->state=%s cmd->arg=%i\n", __func__, ieee80211_state_name[cmd->state], cmd->arg);
+	rtw88_newstate(ic, cmd->state, cmd->arg);
+}
+
+int
+urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
+{
+	struct urtwm_softc *sc = ic->ic_softc;
+	struct urtwm_cmd_newstate cmd;
+
+	/* Do it in a process context. */
+	cmd.state = nstate;
+	cmd.arg = arg;
+	urtwm_do_async(sc, urtwm_newstate_cb, &cmd, sizeof(cmd));
+	return (0);
 }
 
 void
