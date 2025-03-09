@@ -25921,7 +25921,7 @@ urtwm_write_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 	USETW(req.wIndex, 0);
 	USETW(req.wLength, len);
 
-#if 0
+#if 1
 	if (len == 1)
 		printf("%s: %08x -> 0x%02x\n", __func__, addr, *buf);
 	else if (len == 2)
@@ -26349,6 +26349,8 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
 #define GET_RX_DESC_BW(rxdesc)						       \
 	(le32_get_bits(*((__le32 *)(rxdesc) + 0x04), GENMASK(5, 4)))
 
+static int setup_rx(struct urtwm_softc *sc);
+
 void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
@@ -26393,9 +26395,9 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	wh = (struct ieee80211_frame *)((uint8_t *)(data->buf) + pkt_offset);
 	memcpy(mtod(m, uint8_t *), wh, pkt_len);
 	m->m_pkthdr.len = m->m_len = pkt_len;
-//	for (int i = 0; i < pkt_len; i++)
-//		printf("0x%x ", (uint8_t)m->m_data[i]);
-//	printf("\n");
+	//	for (int i = 0; i < pkt_len; i++)
+	//		printf("0x%x ", (uint8_t)m->m_data[i]);
+	//	printf("\n");
 
 	ieee80211_dump_pkt((uint8_t *)wh, pkt_len, 0, 0);
 
@@ -26405,7 +26407,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	memset(&rxi, 0, sizeof(rxi));
 	// TODO: fix rssi
 	rxi.rxi_rssi = 57;
-//	rxi.rxi_chan = 1;
+	//	rxi.rxi_chan = 1;
 
 	ieee80211_inputm(ifp, m, ni, &rxi, &ml);
 	ieee80211_release_node(ic, ni);
@@ -26448,13 +26450,18 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	//	for (int i = 0; i < m->m_len; i++) {
 	//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 	//	}
-	usbd_setup_xfer(xfer, sc->rx_pipe, data, data->buf, RTW_USB_MAX_RECVBUF_SZ,
-	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
-	    urtwm_rxeof);
-	error = usbd_transfer(xfer);
-	printf("%s: setting new transfer error=%i\n", __func__, error);
-	if (error != 0 && error != USBD_IN_PROGRESS)
-		printf("%s: could not set up new transfer: %d\n", __func__, error);
+
+//	printf("%s: data->xfer=%p\n", __func__, data->xfer);
+//	printf("%s: xfer=%p\n", __func__, xfer);
+//	usbd_setup_xfer(data->xfer, sc->rx_pipe, data, data->buf, RTW_USB_MAX_RECVBUF_SZ,
+//	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
+//	    urtwm_rxeof);
+//	error = usbd_transfer(data->xfer);
+//	printf("%s: setting new transfer error=%i\n", __func__, error);
+//	if (error != 0 && error != USBD_IN_PROGRESS)
+//		printf("%s: could not set up new transfer: %d\n", __func__, error);
+
+	setup_rx(sc);
 }
 void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
@@ -28882,6 +28889,50 @@ static int dma_mapping_to_ep(enum rtw_dma_mapping dma_mapping)
         }
 }
 
+static int
+setup_rx(struct urtwm_softc *sc)
+{
+	int error;
+
+	// FIXME: just checking
+	struct urtwm_rx_data *data;
+	data = malloc(sizeof(struct urtwm_rx_data), M_DEVBUF, M_NOWAIT);
+	if (data == NULL) {
+		printf("%s: could not alloc data mem\n", __func__);
+		return ENOMEM;
+	}
+	memset(data, 0, sizeof(struct urtwm_rx_data));
+
+	struct usbd_xfer                *xfer;
+	uint8_t *buf;
+	xfer = usbd_alloc_xfer(sc->sc_udev);
+	if (xfer == NULL) {
+		printf("%s: could not alloc xfer\n", __func__);
+		return ENOMEM;
+	}
+	buf = usbd_alloc_buffer(xfer, RTW_USB_MAX_RECVBUF_SZ);
+
+	// XXX: fill temp buffer
+	data->sc = sc;
+	data->xfer = xfer;
+	data->buf = buf;
+
+	if (buf == NULL) {
+		printf("%s: could not alloc buffer\n", __func__);
+		return ENOMEM;
+	}
+	//	for (int i = 0; i < m->m_len; i++) {
+	//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
+	//	}
+	usbd_setup_xfer(xfer, sc->rx_pipe, data, data->buf, RTW_USB_MAX_RECVBUF_SZ,
+	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
+	    urtwm_rxeof);
+	error = usbd_transfer(xfer);
+	printf("%s: rx xfer error=%i\n", __func__, error);
+
+	return 0;
+}
+
 // TODO: proper cleanup (goto fail)
 static int rtw_usb_parse(struct rtw_dev *rtwdev)
 {
@@ -28966,40 +29017,42 @@ static int rtw_usb_parse(struct rtw_dev *rtwdev)
 				    __func__, error);
 				return EINVAL;
 			}
-			// FIXME: just checking
-			struct urtwm_rx_data *data;
-			data = malloc(sizeof(struct urtwm_rx_data), M_DEVBUF, M_NOWAIT);
-			if (data == NULL) {
-				printf("%s: could not alloc data mem\n", __func__);
-				return ENOMEM;
-			}
-			memset(data, 0, sizeof(struct urtwm_rx_data));
-
-			struct usbd_xfer                *xfer;
-			uint8_t *buf;
-			xfer = usbd_alloc_xfer(sc->sc_udev);
-			if (xfer == NULL) {
-				printf("%s: could not alloc xfer\n", __func__);
-				return ENOMEM;
-			}
-			buf = usbd_alloc_buffer(xfer, RTW_USB_MAX_RECVBUF_SZ);
-
-			// XXX: fill temp buffer
-			data->sc = sc;
-			data->xfer = xfer;
-			data->buf = buf;
-
-			if (buf == NULL) {
-				printf("%s: could not alloc buffer\n", __func__);
-				return ENOMEM;
-			}
-			//	for (int i = 0; i < m->m_len; i++) {
-			//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
-			//	}
-			usbd_setup_xfer(xfer, sc->rx_pipe, data, buf, RTW_USB_MAX_RECVBUF_SZ,
-			    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
-			    urtwm_rxeof);
-			error = usbd_transfer(xfer);
+//			setup_rx(sc);
+//			// FIXME: just checking
+//			struct urtwm_rx_data *data;
+//			data = malloc(sizeof(struct urtwm_rx_data), M_DEVBUF, M_NOWAIT);
+//			if (data == NULL) {
+//				printf("%s: could not alloc data mem\n", __func__);
+//				return ENOMEM;
+//			}
+//			memset(data, 0, sizeof(struct urtwm_rx_data));
+//
+//			struct usbd_xfer                *xfer;
+//			uint8_t *buf;
+//			xfer = usbd_alloc_xfer(sc->sc_udev);
+//			if (xfer == NULL) {
+//				printf("%s: could not alloc xfer\n", __func__);
+//				return ENOMEM;
+//			}
+//			buf = usbd_alloc_buffer(xfer, RTW_USB_MAX_RECVBUF_SZ);
+//
+//			// XXX: fill temp buffer
+//			data->sc = sc;
+//			data->xfer = xfer;
+//			data->buf = buf;
+//
+//			if (buf == NULL) {
+//				printf("%s: could not alloc buffer\n", __func__);
+//				return ENOMEM;
+//			}
+//			//	for (int i = 0; i < m->m_len; i++) {
+//			//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
+//			//	}
+//			usbd_setup_xfer(xfer, sc->rx_pipe, data, data->buf, RTW_USB_MAX_RECVBUF_SZ,
+//			    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
+//			    urtwm_rxeof);
+//			error = usbd_transfer(xfer);
+//			printf("%s: rx xfer error=%i\n", __func__, error);
 
 		}
 
@@ -31605,11 +31658,11 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 //                return;
 
 //        center_chan = ch_param.center_chan;
-	center_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
-//	center_chan = 6;
+//	center_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
+	center_chan = 6;
 //        primary_chan = ch_param.primary_chan;
-	primary_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
-//        primary_chan = 6;
+//	primary_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
+	primary_chan = 6;
         printf("%s: center_chan=%i primary_chan=%i\n", __func__, center_chan, primary_chan);
 //        bandwidth = ch_param.bandwidth;
 	bandwidth = RTW_CHANNEL_WIDTH_20;
@@ -31847,6 +31900,8 @@ urtwm_scan_to(void *arg)
 	usbd_ref_decr(sc->sc_udev);
 }
 
+static int chan_done = 0;
+
 int
 rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
@@ -31879,7 +31934,11 @@ rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 			rtw_core_scan_start(rtwdev, mac_addr, false);
 		}
 
-		rtw_set_channel(rtwdev);
+		if (!chan_done) {
+			rtw_set_channel(rtwdev);
+			setup_rx(sc);
+			chan_done = 1;
+		}
 		urtwm_next_scan(sc);
 		break;
 	default:
@@ -31970,6 +32029,8 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 	case SIOCSIFFLAGS:
 		if (ifp->if_flags & IFF_UP) {
 			if (!(ifp->if_flags & IFF_RUNNING)) {
+				// XXX: lets try
+//				setup_rx(sc);
 				// rtw_core_start
 				printf("%s: starting device\n", __func__);
 				ret = rtwdev->chip->ops->power_on(rtwdev);
@@ -32133,6 +32194,8 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 		return;
 		//                goto err_destroy_rxwq;
 	}
+	// XXX: lets try it here
+//	setup_rx(sc);
 
 
 	// ----- OpenBSD things -----
