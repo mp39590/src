@@ -25780,6 +25780,8 @@ struct urtwm_softc {
 #define TX_DESC_QSEL_MAX                20
 	int				qsel_to_ep[TX_DESC_QSEL_MAX];
 	int (*sc_newstate)(struct ieee80211com *, enum ieee80211_state, int);
+
+	struct timeout			scan_to;
 };
 
 // }}}
@@ -26370,8 +26372,9 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 
 	ni = ieee80211_find_rxnode(ic, wh);
 	memset(&rxi, 0, sizeof(rxi));
+	// TODO: fix rssi
 	rxi.rxi_rssi = 57;
-	rxi.rxi_chan = 1;
+//	rxi.rxi_chan = 1;
 
 	ieee80211_inputm(ifp, m, ni, &rxi, &ml);
 	ieee80211_release_node(ic, ni);
@@ -31387,8 +31390,7 @@ void rtw_update_channel(struct rtw_dev *rtwdev, u8 center_channel,
 	// TODO: only 2GHZ Channels
 	center_freq = ieee80211_ieee2mhz(center_channel, IEEE80211_CHAN_2GHZ);
 	primary_freq = ieee80211_ieee2mhz(primary_channel, IEEE80211_CHAN_2GHZ);
-	printf("%s: center_freq=%d\n", __func__, center_freq);
-	printf("%s: primary_freq=%d\n", __func__, primary_freq);
+	printf("%s: center_freq=%d\n primary_freq=%d\n", __func__, center_freq, primary_freq);
 
         /* assign the center channel used while 20M bw is selected */
         cch_by_bw[RTW_CHANNEL_WIDTH_20] = primary_channel;
@@ -31464,6 +31466,8 @@ void rtw_update_channel(struct rtw_dev *rtwdev, u8 center_channel,
 void rtw_set_channel(struct rtw_dev *rtwdev)
 {
 	const struct rtw_chip_info *chip = rtwdev->chip;
+	struct urtwm_softc *sc = rtwdev->cookie;
+	struct ieee80211com *ic = &sc->sc_ic;
 //        struct ieee80211_hw *hw = rtwdev->hw;
 	struct rtw_hal *hal = &rtwdev->hal;
 //        struct rtw_channel_params ch_param;
@@ -31474,13 +31478,19 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 //                return;
 
 //        center_chan = ch_param.center_chan;
-        center_chan = 1;
+        center_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
 //        primary_chan = ch_param.primary_chan;
-        primary_chan = 1;
+        primary_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
+        printf("%s: center_chan=%i primary_chan=%i\n", __func__, center_chan, primary_chan);
 //        bandwidth = ch_param.bandwidth;
 	bandwidth = RTW_CHANNEL_WIDTH_20;
 //        band = ch_param.center_chan > 14 ? RTW_BAND_5G : RTW_BAND_2G;
         band = center_chan > 14 ? RTW_BAND_5G : RTW_BAND_2G;
+
+        if (band == RTW_BAND_5G) {
+		printf("%s: 5G not supported yet\n", __func__);
+		return;
+	}
 
         rtw_update_channel(rtwdev, center_chan, primary_chan, band, bandwidth);
 
@@ -31683,6 +31693,31 @@ void rtw_tx(struct rtw_dev *rtwdev, struct mbuf *m)
 
 // }}}
 
+void
+urtwm_next_scan(struct urtwm_softc *sc)
+{
+	if (!usbd_is_dying(sc->sc_udev))
+		timeout_add_msec(&sc->scan_to, 200);
+}
+
+void
+urtwm_scan_to(void *arg)
+{
+	struct urtwm_softc *sc = arg;
+	struct ieee80211com *ic = &sc->sc_ic;
+	int s;
+
+	if (usbd_is_dying(sc->sc_udev))
+		return;
+
+	usbd_ref_incr(sc->sc_udev);
+	s = splnet();
+	if (ic->ic_state == IEEE80211_S_SCAN)
+		ieee80211_next_scan(&ic->ic_if);
+	splx(s);
+	usbd_ref_decr(sc->sc_udev);
+}
+
 int
 urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
@@ -31707,10 +31742,13 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		// XXX: our chip doesn't have FW_FEATURE_SCAN_OFFLOAD (tested on
 		// ubutntu)
 //		rtw_ops_hw_scan(rtwdev);
-		IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
-		rtw_core_scan_start(rtwdev, mac_addr, false);
+		if (ostate != IEEE80211_S_SCAN) {
+			IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
+			rtw_core_scan_start(rtwdev, mac_addr, false);
+		}
 
 		rtw_set_channel(rtwdev);
+		urtwm_next_scan(sc);
 		break;
 	default:
 		break;
@@ -31874,6 +31912,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	rtwdev->cookie = sc;
 
 	usb_init_task(&sc->sc_task, urtwm_task, sc, USB_TASK_TYPE_GENERIC);
+	timeout_set(&sc->scan_to, urtwm_scan_to, sc);
 
 //	ret = rtw_usb_alloc_rx_bufs(rtwusb);
 //	if (ret)
