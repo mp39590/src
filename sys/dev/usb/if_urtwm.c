@@ -26371,6 +26371,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	int s;
 	int is_c2h = 0;
 	int error;
+	printf("%s: sc=%p\n", __func__, sc);
 
 	pkt_len = GET_RX_DESC_PKT_LEN(data->buf);
 	is_c2h = GET_RX_DESC_C2H(data->buf);
@@ -26644,25 +26645,26 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 static inline void rtw_write16_set(struct rtw_dev *rtwdev, u32 addr, u16 bit);
 static void rtw_usb_init_burst_pkt_len(struct rtw_dev *rtwdev)
 {
-//        struct rtw_usb *rtwusb = rtw_get_usb_priv(rtwdev);
-//        enum usb_device_speed speed = rtwusb->udev->speed;
-        u8 rxdma, burst_size;
-
-        rxdma = BIT_DMA_BURST_CNT | BIT_DMA_MODE;
-
-//        if (speed == USB_SPEED_SUPER)
-//                burst_size = BIT_DMA_BURST_SIZE_1024;
-//        else if (speed == USB_SPEED_HIGH)
-//                burst_size = BIT_DMA_BURST_SIZE_512;
-//        else
-//                burst_size = BIT_DMA_BURST_SIZE_64;
-	// XXX: hardcode this to usb2 for now
-	burst_size = BIT_DMA_BURST_SIZE_512;
-
-        u8p_replace_bits(&rxdma, burst_size, BIT_DMA_BURST_SIZE);
-
-        rtw_write8(rtwdev, REG_RXDMA_MODE, rxdma);
-        rtw_write16_set(rtwdev, REG_TXDMA_OFFSET_CHK, BIT_DROP_DATA_EN);
+// TODO: WTF? where is it from?
+////        struct rtw_usb *rtwusb = rtw_get_usb_priv(rtwdev);
+////        enum usb_device_speed speed = rtwusb->udev->speed;
+//        u8 rxdma, burst_size;
+//
+//        rxdma = BIT_DMA_BURST_CNT | BIT_DMA_MODE;
+//
+////        if (speed == USB_SPEED_SUPER)
+////                burst_size = BIT_DMA_BURST_SIZE_1024;
+////        else if (speed == USB_SPEED_HIGH)
+////                burst_size = BIT_DMA_BURST_SIZE_512;
+////        else
+////                burst_size = BIT_DMA_BURST_SIZE_64;
+//	// XXX: hardcode this to usb2 for now
+//	burst_size = BIT_DMA_BURST_SIZE_512;
+//
+//        u8p_replace_bits(&rxdma, burst_size, BIT_DMA_BURST_SIZE);
+//
+//        rtw_write8(rtwdev, REG_RXDMA_MODE, rxdma);
+//        rtw_write16_set(rtwdev, REG_TXDMA_OFFSET_CHK, BIT_DROP_DATA_EN);
 }
 
 static void rtw_usb_interface_cfg(struct rtw_dev *rtwdev)
@@ -31356,8 +31358,11 @@ static void rtw8822b_set_channel_rf(struct rtw_dev *rtwdev, u8 channel, u8 bw)
                 rtw_write_rf(rtwdev, RF_PATH_A, RF_LUTDBG, BIT(18), 0x0);
 
         rtw_write_rf(rtwdev, RF_PATH_A, 0x18, RFREG_MASK, rf_reg18);
-        if (hal->rf_type > RF_1T1R)
-                rtw_write_rf(rtwdev, RF_PATH_B, 0x18, RFREG_MASK, rf_reg18);
+        if (hal->rf_type > RF_1T1R) {
+		printf("%s: ok\n", __func__);
+		rtw_write_rf(rtwdev, RF_PATH_B, 0x18, RFREG_MASK, rf_reg18);
+	} else
+		printf("%s: not ok\n", __func__);
 
         rtw_write_rf(rtwdev, RF_PATH_A, RF_XTALX2, BIT(19), 0);
         rtw_write_rf(rtwdev, RF_PATH_A, RF_XTALX2, BIT(19), 1);
@@ -31543,7 +31548,7 @@ static void rtw8822b_set_channel(struct rtw_dev *rtwdev, u8 channel, u8 bw,
 
         rfe_info = &rtw8822b_rfe_info[efuse->rfe_option];
 
-	rtw8822b_set_channel_bb(rtwdev, channel, bw, primary_chan_idx);
+//	rtw8822b_set_channel_bb(rtwdev, channel, bw, primary_chan_idx);
 //	rtw_set_channel_mac(rtwdev, channel, bw, primary_chan_idx);
 	rtw8822b_set_channel_rf(rtwdev, channel, bw);
 //	rtw8822b_set_channel_rxdfir(rtwdev, bw);
@@ -31674,7 +31679,7 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 		return;
 	}
 
-        rtw_update_channel(rtwdev, center_chan, primary_chan, band, bandwidth);
+//        rtw_update_channel(rtwdev, center_chan, primary_chan, band, bandwidth);
 
 	// XXX: is NULL for 8822bu
 //        if (rtwdev->scan_info.op_chan)
@@ -31935,8 +31940,10 @@ rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		}
 
 		if (!chan_done) {
+//			setup_rx(sc);
 			rtw_set_channel(rtwdev);
-			setup_rx(sc);
+			printf("%s: sc=%p\n", __func__, sc);
+//			setup_rx(sc);
 			chan_done = 1;
 		}
 		urtwm_next_scan(sc);
@@ -32036,7 +32043,7 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				ret = rtwdev->chip->ops->power_on(rtwdev);
 				if (ret)
 					return ret;
-				rtw_sec_enable_sec_engine(rtwdev);
+//				rtw_sec_enable_sec_engine(rtwdev);
 
 				// XXX TODO - maybe works without it?
 //				rtwdev->lps_conf.deep_mode = rtw_update_lps_deep_mode(rtwdev, &rtwdev->fw);
@@ -32055,7 +32062,7 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				ifp->if_flags |= IFF_RUNNING;
 
 				// XXX testing idea of rtw_ops_add_interface()
-				rtw_ops_add_interface(rtwdev);
+//				rtw_ops_add_interface(rtwdev);
 
 				ieee80211_begin_scan(ifp);
 
@@ -32195,7 +32202,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 		//                goto err_destroy_rxwq;
 	}
 	// XXX: lets try it here
-//	setup_rx(sc);
+	setup_rx(sc);
 
 
 	// ----- OpenBSD things -----
