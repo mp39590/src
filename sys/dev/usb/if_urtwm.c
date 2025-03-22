@@ -25964,6 +25964,7 @@ int
 urtwm_read_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
     int len)
 {
+	int ret = 0;
 	usb_device_request_t req;
 
 	req.bmRequestType = RTW88_USB_CMD_READ;
@@ -25971,7 +25972,19 @@ urtwm_read_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 	USETW(req.wValue, addr);
 	USETW(req.wIndex, 0);
 	USETW(req.wLength, len);
-	return (usbd_do_request(sc->sc_udev, &req, buf));
+
+	ret = (usbd_do_request(sc->sc_udev, &req, buf));
+#if 1
+	if (len == 1)
+		printf("%s: %08x <- %02x\n", __func__, addr, *buf);
+	else if (len == 2)
+		printf("%s: %08x <- %04x\n", __func__, addr, *(uint16_t *)buf);
+	else if (len == 4) {
+		printf("%s: %08x <- %08x\n", __func__, addr, *((uint32_t *)buf));
+	}
+#endif
+
+	return (ret);
 }
 
 uint8_t
@@ -27099,6 +27112,7 @@ urtwm_task(void *arg)
 		s = splusb();
 		ring->queued--;
 		ring->next = (ring->next + 1) % URTWM_HOST_CMD_RING_COUNT;
+		printf("%s: ring->next=%i\n", __func__, ring->next);
 	}
 	splx(s);
 }
@@ -31663,11 +31677,11 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 //                return;
 
 //        center_chan = ch_param.center_chan;
-//	center_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
-	center_chan = 6;
+	center_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
+//	center_chan = 1;
 //        primary_chan = ch_param.primary_chan;
-//	primary_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
-	primary_chan = 6;
+	primary_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
+//	primary_chan = 1;
         printf("%s: center_chan=%i primary_chan=%i\n", __func__, center_chan, primary_chan);
 //        bandwidth = ch_param.bandwidth;
 	bandwidth = RTW_CHANNEL_WIDTH_20;
@@ -31934,18 +31948,18 @@ rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		// XXX: our chip doesn't have FW_FEATURE_SCAN_OFFLOAD (tested on
 		// ubutntu)
 //		rtw_ops_hw_scan(rtwdev);
+		rtw_set_channel(rtwdev);
 		if (ostate != IEEE80211_S_SCAN) {
 			IEEE80211_ADDR_COPY(mac_addr, ic->ic_myaddr);
 			rtw_core_scan_start(rtwdev, mac_addr, false);
 		}
 
-		if (!chan_done) {
+//		if (!chan_done) {
 //			setup_rx(sc);
-			rtw_set_channel(rtwdev);
-			printf("%s: sc=%p\n", __func__, sc);
+//			printf("%s: sc=%p\n", __func__, sc);
 //			setup_rx(sc);
 			chan_done = 1;
-		}
+//		}
 		urtwm_next_scan(sc);
 		break;
 	default:
