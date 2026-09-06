@@ -32345,6 +32345,16 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 //	    IEEE80211_C_SHPREAMBLE |	/* Short preamble supported. */
 //	    IEEE80211_C_SHSLOT |	/* Short slot time supported. */
 
+	/*
+	 * XXX: this was never set anywhere, so ieee80211_fix_rate() could
+	 * never find a common rate with any AP (ic_sup_rates[] all-zero),
+	 * which fails ieee80211_match_bss() with ASSOCFAIL_BASIC_RATE for
+	 * every candidate regardless of SSID/RSN match -- see rtwn.c for
+	 * the same two lines on the reference driver.
+	 */
+	ic->ic_sup_rates[IEEE80211_MODE_11B] = ieee80211_std_rateset_11b;
+	ic->ic_sup_rates[IEEE80211_MODE_11G] = ieee80211_std_rateset_11g;
+
 	IEEE80211_ADDR_COPY(ic->ic_myaddr, efuse->addr);
 
 	/* IBSS channel undefined for now. */
