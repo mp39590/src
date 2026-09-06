@@ -32035,6 +32035,8 @@ urtwm_start(struct ifnet *ifp)
 	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
 	struct ieee80211com *ic = &sc->sc_ic;
 	struct ieee80211_node *ni;
+	struct ieee80211_frame *wh;
+	struct ieee80211_key *k;
 	struct mbuf *m;
 
 	if (!(ifp->if_flags & IFF_RUNNING) || ifq_is_oactive(&ifp->if_snd))
@@ -32057,6 +32059,20 @@ urtwm_start(struct ifnet *ifp)
 			break;
 		if ((m = ieee80211_encap(ifp, m, &ni)) == NULL)
 			continue;
+
+		/*
+		 * No hardware crypto: software-encrypt now that
+		 * ieee80211_encap() has set the PROTECTED bit for us.
+		 */
+		wh = mtod(m, struct ieee80211_frame *);
+		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
+			k = ieee80211_get_txkey(ic, wh, ni);
+			if ((m = ieee80211_encrypt(ic, m, k)) == NULL) {
+				ieee80211_release_node(ic, ni);
+				ifp->if_oerrors++;
+				continue;
+			}
+		}
 sendit:
 		ieee80211_dump_pkt(mtod(m, uint8_t *), m->m_pkthdr.len, 0, 0);
 		rtw_tx(rtwdev, m);
