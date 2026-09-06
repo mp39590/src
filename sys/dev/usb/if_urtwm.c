@@ -26477,14 +26477,17 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 
 	setup_rx(sc);
 }
+
+void urtwm_start(struct ifnet *ifp);
+
 void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-//	struct urtwm_tx_data *data = priv;
-//	struct urtwn_softc *sc = data->sc;
-//	struct ifnet *ifp = &sc->sc_ic.ic_if;
-//	int s;
+	struct urtwm_tx_data *data = priv;
+	struct urtwm_softc *sc = data->sc;
+	struct ifnet *ifp = &sc->sc_ic.ic_if;
+	int s;
 //
 	s = splnet();
 	if (status != USBD_NORMAL_COMPLETION)
@@ -32017,8 +32020,6 @@ urtwm_start(struct ifnet *ifp)
 			printf("%s: m is NULL\n", __func__);
 			return;
 		}
-
-
 
 		m = ifq_dequeue(&ifp->if_snd);
 		if (m == NULL) {
