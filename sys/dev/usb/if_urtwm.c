@@ -26365,6 +26365,24 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
 
 static int setup_rx(struct urtwm_softc *sc);
 
+/*
+ * XXX DEBUG: only log frame types that matter for the current
+ * investigation (RX decrypt of unicast data). Beacons/probe-responses
+ * arrive constantly (10/sec+) and drown out everything else -- skip
+ * per-packet detail for those, and skip the per-xfer summary lines
+ * entirely when an xfer contained only boring frames.
+ */
+static int
+urtwm_rx_is_boring(struct ieee80211_frame *wh)
+{
+	uint8_t type = wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK;
+	uint8_t subtype = wh->i_fc[0] & IEEE80211_FC0_SUBTYPE_MASK;
+
+	return (type == IEEE80211_FC0_TYPE_MGT &&
+	    (subtype == IEEE80211_FC0_SUBTYPE_BEACON ||
+	    subtype == IEEE80211_FC0_SUBTYPE_PROBE_RESP));
+}
+
 void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
@@ -26382,12 +26400,13 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	uint8_t *rx_desc, *bufend;
 	uint32_t len;
 	uint32_t pkt_len, pkt_offset, drv_info_sz, shift, skb_len, next_pkt;
-	int s, npkts = 0;
+	int s, npkts = 0, interesting = 0;
 	int is_c2h;
 
-	printf("%s: #%u status=%d\n", __func__, ++rxcount, status);
+	++rxcount;
 
 	if (status != USBD_NORMAL_COMPLETION) {
+		printf("%s: #%u status=%d\n", __func__, rxcount, status);
 		if (status == USBD_STALLED)
 			usbd_clear_endpoint_stall_async(sc->rx_pipe);
 		if (status != USBD_CANCELLED)
@@ -26396,7 +26415,6 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	}
 
 	usbd_get_xfer_status(xfer, NULL, NULL, &len, NULL);
-	printf("%s: #%u actual xfer len=%u\n", __func__, rxcount, len);
 
 	/*
 	 * XXX: rtw88's rtw_usb_rx_handler() (Linux) packs multiple 802.11
@@ -26456,21 +26474,30 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 			memcpy(mtod(m, uint8_t *), wh, pkt_len);
 			m->m_pkthdr.len = m->m_len = pkt_len;
 
-			printf("%s: pkt#%d pkt_len=%u drv_info_sz=%u "
-			    "shift=%u pkt_offset=%u fc0=0x%02x fc1=0x%02x "
-			    "crc_err=%d icv_err=%d\n",
-			    __func__, npkts, pkt_len, drv_info_sz, shift,
-			    pkt_offset, wh->i_fc[0], wh->i_fc[1],
-			    GET_RX_DESC_CRC32(rx_desc),
-			    GET_RX_DESC_ICV_ERR(rx_desc));
-			/* ether_sprintf() has one static buffer -- can't
-			 * combine multiple calls in a single printf(). */
-			printf("%s: pkt#%d a1=%s\n", __func__, npkts,
-			    ether_sprintf(wh->i_addr1));
-			printf("%s: pkt#%d a2=%s\n", __func__, npkts,
-			    ether_sprintf(wh->i_addr2));
-			printf("%s: pkt#%d a3=%s\n", __func__, npkts,
-			    ether_sprintf(wh->i_addr3));
+			if (!urtwm_rx_is_boring(wh)) {
+				interesting = 1;
+				printf("%s: #%u pkt#%d pkt_len=%u "
+				    "drv_info_sz=%u shift=%u pkt_offset=%u "
+				    "fc0=0x%02x fc1=0x%02x crc_err=%d "
+				    "icv_err=%d\n",
+				    __func__, rxcount, npkts, pkt_len,
+				    drv_info_sz, shift, pkt_offset,
+				    wh->i_fc[0], wh->i_fc[1],
+				    GET_RX_DESC_CRC32(rx_desc),
+				    GET_RX_DESC_ICV_ERR(rx_desc));
+				/* ether_sprintf() has one static buffer --
+				 * can't combine multiple calls in one
+				 * printf(). */
+				printf("%s: #%u pkt#%d a1=%s\n", __func__,
+				    rxcount, npkts,
+				    ether_sprintf(wh->i_addr1));
+				printf("%s: #%u pkt#%d a2=%s\n", __func__,
+				    rxcount, npkts,
+				    ether_sprintf(wh->i_addr2));
+				printf("%s: #%u pkt#%d a3=%s\n", __func__,
+				    rxcount, npkts,
+				    ether_sprintf(wh->i_addr3));
+			}
 
 			ni = ieee80211_find_rxnode(ic, wh);
 			memset(&rxi, 0, sizeof(rxi));
@@ -26489,8 +26516,10 @@ next:
 	}
 	splx(s);
 
-	printf("%s: #%u found %d packet(s) in this xfer (len=%u)\n",
-	    __func__, rxcount, npkts, len);
+	/* A multi-packet xfer is itself notable (see the loop comment above). */
+	if (interesting || npkts != 1)
+		printf("%s: #%u found %d packet(s) in this xfer (len=%u)\n",
+		    __func__, rxcount, npkts, len);
 
 	if_input(&ic->ic_if, &ml);
 
@@ -26633,8 +26662,8 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	m->m_nextpkt = NULL;
 	m->m_type = 0;
 	m->m_flags = 0;
-	printf("%s: will send qsel=%i\n", __func__, qsel);
-	printf("%s: pkt_info->bmc=%i\n", __func__, pkt_info->bmc);
+	printf("%s: qsel=%i bmc=%i size=%u\n", __func__, qsel,
+	    pkt_info->bmc, size);
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
 
@@ -31912,7 +31941,6 @@ void rtw_tx_pkt_info_update(struct rtw_dev *rtwdev,
 //                rtw_tx_report_enable(rtwdev, pkt_info);
 
 	bmc = IEEE80211_IS_MULTICAST(wh->i_addr1);
-	printf("%s: bmc=%i\n", __func__, bmc);
 
         pkt_info->bmc = bmc;
 //	rtw_tx_pkt_info_update_sec(rtwdev, pkt_info, skb);
@@ -32092,8 +32120,6 @@ urtwm_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 void
 urtwm_start(struct ifnet *ifp)
 {
-	printf("%s: \n", __func__);
-
 	struct urtwm_softc *sc = ifp->if_softc;
 	struct rtw88_softc *sc_sc = &sc->sc_sc;
 	struct rtw_dev *rtwdev = &sc_sc->rtw_dev;
@@ -32138,7 +32164,20 @@ urtwm_start(struct ifnet *ifp)
 			}
 		}
 sendit:
-		ieee80211_dump_pkt(mtod(m, uint8_t *), m->m_pkthdr.len, 0, 0);
+		/*
+		 * XXX DEBUG: full hex dump_pkt() for every outgoing frame
+		 * is fine for the rare mgmt frames (auth/assoc/deauth) but
+		 * floods the log once real data traffic is flowing -- just
+		 * a one-line summary for data frames instead.
+		 */
+		wh = mtod(m, struct ieee80211_frame *);
+		if ((wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK) ==
+		    IEEE80211_FC0_TYPE_DATA)
+			printf("%s: TX data len=%d fc1=0x%02x a1=%s\n",
+			    __func__, m->m_pkthdr.len, wh->i_fc[1],
+			    ether_sprintf(wh->i_addr1));
+		else
+			ieee80211_dump_pkt(mtod(m, uint8_t *), m->m_pkthdr.len, 0, 0);
 		rtw_tx(rtwdev, m);
 	}
 }
