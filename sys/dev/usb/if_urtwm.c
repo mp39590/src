@@ -26369,7 +26369,8 @@ void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-//	printf("%s: RX status=%d\n", __func__, status);
+	static unsigned int rxcount = 0;
+	printf("%s: #%u status=%d\n", __func__, ++rxcount, status);
 
 	struct mbuf_list ml = MBUF_LIST_INITIALIZER();
 	struct urtwm_rx_data *data = priv;
@@ -26403,8 +26404,21 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	shift = GET_RX_DESC_SHIFT(data->buf);
 	pkt_offset = 24 + drv_info_sz + shift;
 
-//	printf("%s: pkt_len=%d\n", __func__, pkt_len);
-//	printf("%s: is_c2h=%d\n", __func__, is_c2h);
+	printf("%s: pkt_len=%u is_c2h=%d drv_info_sz=%u shift=%u "
+	    "pkt_offset=%u\n", __func__, pkt_len, is_c2h, drv_info_sz,
+	    shift, pkt_offset);
+
+	/*
+	 * pkt_len is a raw 14-bit descriptor field (max 16383) with no
+	 * validation; m only ever gets a single MCLBYTES cluster below.
+	 * If pkt_offset/parsing is ever off, trusting pkt_len blindly
+	 * means memcpy() below can write past the cluster. Bail instead.
+	 */
+	if (pkt_len == 0 || pkt_len > MCLBYTES) {
+		printf("%s: bogus pkt_len=%u, dropping\n", __func__, pkt_len);
+		setup_rx(sc);
+		return;
+	}
 
 	MGETHDR(m, M_DONTWAIT, MT_DATA);
 	if (__predict_false(m == NULL)) {
@@ -26425,11 +26439,10 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	wh = (struct ieee80211_frame *)((uint8_t *)(data->buf) + pkt_offset);
 	memcpy(mtod(m, uint8_t *), wh, pkt_len);
 	m->m_pkthdr.len = m->m_len = pkt_len;
-	//	for (int i = 0; i < pkt_len; i++)
-	//		printf("0x%x ", (uint8_t)m->m_data[i]);
-	//	printf("\n");
 
-//	ieee80211_dump_pkt((uint8_t *)wh, pkt_len, 0, 0);
+	printf("%s: fc0=0x%02x fc1=0x%02x\n", __func__, wh->i_fc[0],
+	    wh->i_fc[1]);
+	ieee80211_dump_pkt((uint8_t *)wh, pkt_len, 0, 0);
 
 	s = splnet();
 
