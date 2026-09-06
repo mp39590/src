@@ -26368,13 +26368,6 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
 
 static int setup_rx(struct urtwm_softc *sc);
 
-/*
- * XXX DEBUG: only log frame types that matter for the current
- * investigation (RX decrypt of unicast data). Beacons/probe-responses
- * arrive constantly (10/sec+) and drown out everything else -- skip
- * per-packet detail for those, and skip the per-xfer summary lines
- * entirely when an xfer contained only boring frames.
- */
 static int
 urtwm_rx_is_boring(struct ieee80211_frame *wh)
 {
@@ -26419,17 +26412,6 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 
 	usbd_get_xfer_status(xfer, NULL, NULL, &len, NULL);
 
-	/*
-	 * XXX: rtw88's rtw_usb_rx_handler() (Linux) packs multiple 802.11
-	 * frames back-to-back into a single USB bulk transfer, each with
-	 * its own rx descriptor + drv_info, padded up to an 8-byte
-	 * boundary. We used to only ever look at the first frame in the
-	 * buffer and throw the rest away silently -- any frame that
-	 * wasn't first in its USB transfer (e.g. an AUTH response
-	 * arriving alongside other traffic) would vanish with no trace.
-	 * Loop over the whole (actual, not allocated) transfer length,
-	 * mirroring the real driver's do/while loop exactly.
-	 */
 	rx_desc = data->buf;
 	bufend = data->buf + len;
 
@@ -26461,22 +26443,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 		wh = (struct ieee80211_frame *)(rx_desc + pkt_offset);
 
 		if (!is_c2h) {
-			/*
-			 * XXX: RCR has BIT_APP_FCS set (matches Linux's
-			 * rtw88, which sets ieee80211_hw_set(hw,
-			 * RX_INCLUDES_FCS) so mac80211 strips it
-			 * automatically) -- pkt_len includes a trailing
-			 * 4-byte FCS that isn't part of the actual frame.
-			 * Confirmed directly: a real 802.11 ACK frame is
-			 * exactly 10 bytes (2+2+6) but we were seeing
-			 * pkt_len=14 for one. Left unstripped, those 4 extra
-			 * bytes get included in the CCMP MIC computation
-			 * during software decrypt, which fails it silently
-			 * for every encrypted data frame -- while unencrypted
-			 * management frames tolerate the trailing garbage
-			 * fine, which is why AUTH/ASSOC/EAPOL all worked
-			 * despite this.
-			 */
+			/* RCR has BIT_APP_FCS set: pkt_len includes the trailing FCS. */
 			pkt_len -= URTWM_FCS_LEN;
 
 			MGETHDR(m, M_DONTWAIT, MT_DATA);
@@ -26563,11 +26530,6 @@ urtwm_txeof(struct usbd_xfer *xfer, void *priv,
 		return;
 	}
 
-	/*
-	 * XXX DIAGNOSTIC: confirm the USB write for this frame actually
-	 * completed successfully at the hardware level -- we previously
-	 * had zero visibility into this (only failures were printed).
-	 */
 	usbd_get_xfer_status(xfer, NULL, NULL, &actlen, NULL);
 	printf("%s: TX complete, actlen=%u\n", __func__, actlen);
 }
@@ -26617,15 +26579,6 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 	}
 	pipe = sc->tx_pipe[ep];
 
-	/*
-	 * XXX: this used to memcpy() a hardcoded captured-probe-request
-	 * byte blob instead of the real frame whenever qsel == MYQUEUE
-	 * -- which is unconditionally true for every packet we send (see
-	 * rtw_usb_tx_write()), so every single outgoing frame (including
-	 * AUTH) was silently replaced with that same fixed broadcast
-	 * probe request before ever reaching the wire. Always send the
-	 * actual constructed frame.
-	 */
 	memcpy(buf, m->m_data, m->m_len);
 
 	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
@@ -31620,13 +31573,6 @@ static void rtw8822b_set_channel(struct rtw_dev *rtwdev, u8 channel, u8 bw,
 	rtw8822b_set_channel_rf(rtwdev, channel, bw);
 	rtw8822b_set_channel_rxdfir(rtwdev, bw);
 	rtw8822b_toggle_igi(rtwdev);
-	/*
-	 * XXX: rtw8822b_rfe_info[] is a sparse table -- only rfe_option
-	 * 2/3/5 have entries (matches upstream Linux rtw8822b.c, which
-	 * only ships CCUT/RFE-switch tables for those board variants).
-	 * Guard instead of blindly dereferencing a NULL cca_ccut or
-	 * rtw_set_channel_rfe for any other rfe_option.
-	 */
 	if (rfe_info->cca_ccut_2g != NULL && rfe_info->cca_ccut_5g != NULL)
 		rtw8822b_set_channel_cca(rtwdev, channel, bw, rfe_info);
 	else
@@ -31761,13 +31707,6 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 		return;
 	}
 
-	/*
-	 * XXX: this was never called, so hal->current_band_type stayed at
-	 * its zero-initialized value forever, which is NOT RTW_BAND_2G
-	 * (== BIT(NL80211_BAND_2GHZ) == 1) -- rtw_tx_pkt_info_update_rate()
-	 * checks this field and was silently taking the "else" (11G/6M)
-	 * branch instead of the intended 11B/1M one on every single TX.
-	 */
 	rtw_update_channel(rtwdev, center_chan, primary_chan, band, bandwidth);
 
 	printf("%s: tuning to channel %d (band=%d bw=%d primary_idx=%d)\n",
@@ -31806,17 +31745,6 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 
 // {{{ rtw_tx
 
-/*
- * XXX: matches rtw_usb_tx_queue_mapping_to_qsel() in Linux's usb.c. We
- * used to hardcode every packet's qsel to TX_DESC_QSEL_HIGH (mapped to
- * the dma_map_hi USB endpoint) regardless of frame type -- which,
- * combined with the mybuf[] hack that discarded the real frame content
- * anyway, meant this was never actually exercised. Now that real
- * frames are sent, management/control frames (AUTH, ASSOC, ...) need
- * to go to TX_DESC_QSEL_MGMT (dma_map_mg) or the chip's MAC does not
- * transmit them -- confirmed via an external sniffer seeing nothing
- * at all once real frames replaced the hardcoded blob.
- */
 static uint8_t
 urtwm_tx_queue_mapping_to_qsel(struct mbuf *m)
 {
@@ -31829,17 +31757,6 @@ urtwm_tx_queue_mapping_to_qsel(struct mbuf *m)
 	if (IEEE80211_IS_MULTICAST(wh->i_addr1))
 		return TX_DESC_QSEL_HIGH;
 
-	/*
-	 * XXX: unicast data (this is also where EAPOL/4-way-handshake
-	 * frames ride) matches upstream's "qsel = skb->priority" path --
-	 * qsel_to_ep[] already folds TID -> AC -> USB endpoint for
-	 * TX_DESC_QSEL_TID0..TID7 (TID0/3->BE, TID1/2->BK, TID4/5->VI,
-	 * TID6/7->VO, same as WMM). Previously this fell through to
-	 * TX_DESC_QSEL_BEACON, which shares dma_map_hi with HIGH and is
-	 * meant for AP-mode beacon traffic, not station unicast data --
-	 * that's why the WPA handshake was stalling. Default to TID 0
-	 * (best effort) for non-QoS frames such as EAPOL.
-	 */
 	tid = ieee80211_has_qos(wh) ?
 	    (ieee80211_get_qos(wh) & IEEE80211_QOS_TID) : 0;
 	return TX_DESC_QSEL_TID0 + tid;
@@ -32186,12 +32103,6 @@ urtwm_start(struct ifnet *ifp)
 			}
 		}
 sendit:
-		/*
-		 * XXX DEBUG: full hex dump_pkt() for every outgoing frame
-		 * is fine for the rare mgmt frames (auth/assoc/deauth) but
-		 * floods the log once real data traffic is flowing -- just
-		 * a one-line summary for data frames instead.
-		 */
 		wh = mtod(m, struct ieee80211_frame *);
 		if ((wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK) ==
 		    IEEE80211_FC0_TYPE_DATA)
@@ -32232,12 +32143,6 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				ret = rtwdev->chip->ops->power_on(rtwdev);
 				if (ret)
 					return ret;
-				/*
-				 * XXX: software crypto only for now, leave
-				 * the hw sec engine (and RX_DEC_EN) off so
-				 * it doesn't touch incoming ciphertext before
-				 * net80211's software CCMP gets to it.
-				 */
 //				rtw_sec_enable_sec_engine(rtwdev);
 
 				// XXX TODO - maybe works without it?
@@ -32320,14 +32225,6 @@ urtwm_media_change(struct ifnet *ifp)
 void
 urtwm_watchdog(struct ifnet *ifp)
 {
-	/*
-	 * XXX: this was never wired up (if_watchdog left NULL), so
-	 * ic_mgt_timer never got serviced: net80211 sets it on every
-	 * AUTH/ASSOC frame it sends expecting a timed reply, but without
-	 * ieee80211_watchdog() ticking it down there is no timeout, no
-	 * retry, and no fallback to SCAN if the AP never answers -- we'd
-	 * just wait at AUTH forever with zero diagnostic output.
-	 */
 	ifp->if_timer = 0;
 	ieee80211_watchdog(ifp);
 }
@@ -32442,13 +32339,6 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 //	    IEEE80211_C_SHPREAMBLE |	/* Short preamble supported. */
 //	    IEEE80211_C_SHSLOT |	/* Short slot time supported. */
 
-	/*
-	 * XXX: this was never set anywhere, so ieee80211_fix_rate() could
-	 * never find a common rate with any AP (ic_sup_rates[] all-zero),
-	 * which fails ieee80211_match_bss() with ASSOCFAIL_BASIC_RATE for
-	 * every candidate regardless of SSID/RSN match -- see rtwn.c for
-	 * the same two lines on the reference driver.
-	 */
 	ic->ic_sup_rates[IEEE80211_MODE_11B] = ieee80211_std_rateset_11b;
 	ic->ic_sup_rates[IEEE80211_MODE_11G] = ieee80211_std_rateset_11g;
 
