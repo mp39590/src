@@ -26370,8 +26370,6 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
 	static unsigned int rxcount = 0;
-	printf("%s: #%u status=%d\n", __func__, ++rxcount, status);
-
 	struct mbuf_list ml = MBUF_LIST_INITIALIZER();
 	struct urtwm_rx_data *data = priv;
 	struct urtwm_softc *sc = data->sc;
@@ -26381,128 +26379,105 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	struct ieee80211_node *ni;
 	struct ieee80211_rxinfo rxi;
 	struct mbuf *m;
-	uint32_t pkt_len;
-	uint32_t pkt_offset;
-	uint32_t drv_info_sz, shift;
-	int s;
-	int is_c2h = 0;
-	int error;
-//	printf("%s: sc=%p\n", __func__, sc);
+	uint8_t *rx_desc, *bufend;
+	uint32_t len;
+	uint32_t pkt_len, pkt_offset, drv_info_sz, shift, skb_len, next_pkt;
+	int s, npkts = 0;
+	int is_c2h;
 
-	pkt_len = GET_RX_DESC_PKT_LEN(data->buf);
-	is_c2h = GET_RX_DESC_C2H(data->buf);
+	printf("%s: #%u status=%d\n", __func__, ++rxcount, status);
 
-	/*
-	 * XXX: pkt_offset used to be hardcoded to 56 ("got from linux
-	 * dump"), i.e. only correct for the one probe response frame it
-	 * was measured from. drv_info_sz/shift are per-packet variable
-	 * (see rtw88's rx desc layout), so compute the real offset:
-	 * fixed rx_pkt_desc_sz (24 for this chip, see the commented-out
-	 * rtw8822b_hw_spec.rx_pkt_desc_sz) + drv_info + alignment shift.
-	 */
-	drv_info_sz = GET_RX_DESC_DRV_INFO_SIZE(data->buf) * 8;
-	shift = GET_RX_DESC_SHIFT(data->buf);
-	pkt_offset = 24 + drv_info_sz + shift;
-
-	printf("%s: pkt_len=%u is_c2h=%d drv_info_sz=%u shift=%u "
-	    "pkt_offset=%u\n", __func__, pkt_len, is_c2h, drv_info_sz,
-	    shift, pkt_offset);
-
-	/*
-	 * pkt_len is a raw 14-bit descriptor field (max 16383) with no
-	 * validation; m only ever gets a single MCLBYTES cluster below.
-	 * If pkt_offset/parsing is ever off, trusting pkt_len blindly
-	 * means memcpy() below can write past the cluster. Bail instead.
-	 */
-	if (pkt_len == 0 || pkt_len > MCLBYTES) {
-		printf("%s: bogus pkt_len=%u, dropping\n", __func__, pkt_len);
-		setup_rx(sc);
-		return;
-	}
-
-	MGETHDR(m, M_DONTWAIT, MT_DATA);
-	if (__predict_false(m == NULL)) {
-		printf("%s: m is NULL\n", __func__);
-		setup_rx(sc);
-		return;
-	}
-	if (pkt_len > MHLEN) {
-		MCLGET(m, M_DONTWAIT);
-		if (__predict_false(!(m->m_flags & M_EXT))) {
-			printf("%s: !M_EXT\n", __func__);
-			m_freem(m);
+	if (status != USBD_NORMAL_COMPLETION) {
+		if (status == USBD_STALLED)
+			usbd_clear_endpoint_stall_async(sc->rx_pipe);
+		if (status != USBD_CANCELLED)
 			setup_rx(sc);
-			return;
-		}
+		return;
 	}
 
-	wh = (struct ieee80211_frame *)((uint8_t *)(data->buf) + pkt_offset);
-	memcpy(mtod(m, uint8_t *), wh, pkt_len);
-	m->m_pkthdr.len = m->m_len = pkt_len;
+	usbd_get_xfer_status(xfer, NULL, NULL, &len, NULL);
 
-	printf("%s: fc0=0x%02x fc1=0x%02x\n", __func__, wh->i_fc[0],
-	    wh->i_fc[1]);
-	ieee80211_dump_pkt((uint8_t *)wh, pkt_len, 0, 0);
+	/*
+	 * XXX: rtw88's rtw_usb_rx_handler() (Linux) packs multiple 802.11
+	 * frames back-to-back into a single USB bulk transfer, each with
+	 * its own rx descriptor + drv_info, padded up to an 8-byte
+	 * boundary. We used to only ever look at the first frame in the
+	 * buffer and throw the rest away silently -- any frame that
+	 * wasn't first in its USB transfer (e.g. an AUTH response
+	 * arriving alongside other traffic) would vanish with no trace.
+	 * Loop over the whole (actual, not allocated) transfer length,
+	 * mirroring the real driver's do/while loop exactly.
+	 */
+	rx_desc = data->buf;
+	bufend = data->buf + len;
 
 	s = splnet();
+	while (rx_desc + 24 <= bufend) {
+		pkt_len = GET_RX_DESC_PKT_LEN(rx_desc);
+		is_c2h = GET_RX_DESC_C2H(rx_desc);
+		drv_info_sz = GET_RX_DESC_DRV_INFO_SIZE(rx_desc) * 8;
+		shift = GET_RX_DESC_SHIFT(rx_desc);
+		pkt_offset = 24 + drv_info_sz + shift;
+		skb_len = pkt_len + pkt_offset;
 
-	ni = ieee80211_find_rxnode(ic, wh);
-	memset(&rxi, 0, sizeof(rxi));
-	// TODO: fix rssi
-	rxi.rxi_rssi = 57;
-	//	rxi.rxi_chan = 1;
+		/*
+		 * Same bounds-check reasoning as before: pkt_len is a raw
+		 * 14-bit field (max 16383), m only ever gets one MCLBYTES
+		 * cluster, and skb_len must not run past what this xfer
+		 * actually delivered.
+		 */
+		if (pkt_len == 0 || pkt_len > MCLBYTES ||
+		    (uint32_t)(bufend - rx_desc) < skb_len) {
+			printf("%s: bogus pkt_len=%u pkt_offset=%u at "
+			    "offset %ld, stopping\n", __func__, pkt_len,
+			    pkt_offset, (long)(rx_desc - (uint8_t *)data->buf));
+			break;
+		}
 
-	ieee80211_inputm(ifp, m, ni, &rxi, &ml);
-	ieee80211_release_node(ic, ni);
+		npkts++;
+		wh = (struct ieee80211_frame *)(rx_desc + pkt_offset);
 
+		if (!is_c2h) {
+			MGETHDR(m, M_DONTWAIT, MT_DATA);
+			if (__predict_false(m == NULL)) {
+				printf("%s: m is NULL\n", __func__);
+				goto next;
+			}
+			if (pkt_len > MHLEN) {
+				MCLGET(m, M_DONTWAIT);
+				if (__predict_false(!(m->m_flags & M_EXT))) {
+					printf("%s: !M_EXT\n", __func__);
+					m_freem(m);
+					goto next;
+				}
+			}
+
+			memcpy(mtod(m, uint8_t *), wh, pkt_len);
+			m->m_pkthdr.len = m->m_len = pkt_len;
+
+			printf("%s: pkt#%d pkt_len=%u drv_info_sz=%u "
+			    "shift=%u pkt_offset=%u fc0=0x%02x fc1=0x%02x\n",
+			    __func__, npkts, pkt_len, drv_info_sz, shift,
+			    pkt_offset, wh->i_fc[0], wh->i_fc[1]);
+
+			ni = ieee80211_find_rxnode(ic, wh);
+			memset(&rxi, 0, sizeof(rxi));
+			// TODO: fix rssi
+			rxi.rxi_rssi = 57;
+
+			ieee80211_inputm(ifp, m, ni, &rxi, &ml);
+			ieee80211_release_node(ic, ni);
+		}
+
+next:
+		next_pkt = roundup(skb_len, 8);
+		if (next_pkt == 0)
+			break;
+		rx_desc += next_pkt;
+	}
 	splx(s);
 
 	if_input(&ic->ic_if, &ml);
-
-	// Schedule new transfer
-
-//	usbd_setup_xfer(xfer, sc->rx_pipe, data, data->buf, URTWN_RXBUFSZ,
-//	    USBD_SHORT_XFER_OK | USBD_NO_COPY, USBD_NO_TIMEOUT, urtwn_rxeof);
-//	error = usbd_transfer(data->xfer);
-//	if (error != 0 && error != USBD_IN_PROGRESS)
-//		DPRINTF(("could not set up new transfer: %d\n", error));
-//	data = malloc(sizeof(struct urtwm_rx_data), M_DEVBUF, M_NOWAIT);
-//	if (data == NULL) {
-//		printf("%s: could not alloc data mem\n", __func__);
-//		return;
-//	}
-//	memset(data, 0, sizeof(struct urtwm_rx_data));
-
-//	uint8_t *buf;
-//	xfer = usbd_alloc_xfer(sc->sc_udev);
-//	if (xfer == NULL) {
-//		printf("%s: could not alloc xfer\n", __func__);
-//		return;
-//	}
-//	buf = usbd_alloc_buffer(xfer, 16 * 1024);
-
-	// XXX: fill temp buffer
-//	data->sc = sc;
-//	data->xfer = xfer;
-//	data->buf = buf;
-
-//	if (buf == NULL) {
-//		printf("%s: could not alloc buffer\n", __func__);
-//		return;
-//	}
-	//	for (int i = 0; i < m->m_len; i++) {
-	//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
-	//	}
-
-//	printf("%s: data->xfer=%p\n", __func__, data->xfer);
-//	printf("%s: xfer=%p\n", __func__, xfer);
-//	usbd_setup_xfer(data->xfer, sc->rx_pipe, data, data->buf, RTW_USB_MAX_RECVBUF_SZ,
-//	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
-//	    urtwm_rxeof);
-//	error = usbd_transfer(data->xfer);
-//	printf("%s: setting new transfer error=%i\n", __func__, error);
-//	if (error != 0 && error != USBD_IN_PROGRESS)
-//		printf("%s: could not set up new transfer: %d\n", __func__, error);
 
 	setup_rx(sc);
 }
