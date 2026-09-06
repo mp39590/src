@@ -32264,6 +32264,21 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 	default:
 		error = ieee80211_ioctl(ifp, cmd, data);
 	}
+
+	if (error == ENETRESET) {
+		/*
+		 * ieee80211_ioctl() returns ENETRESET whenever a config
+		 * change (nwid, wpakey, ...) requires the driver to
+		 * (re)join the network. We don't have a full stop/init
+		 * cycle wired up yet (unlike rtwn_ioctl()'s rtwn_stop()+
+		 * rtwn_init()), so just kick off a fresh scan.
+		 */
+		if ((ifp->if_flags & (IFF_UP | IFF_RUNNING)) ==
+		    (IFF_UP | IFF_RUNNING))
+			ieee80211_begin_scan(ifp);
+		error = 0;
+	}
+
 	splx(s);
 	usbd_ref_decr(sc->sc_udev);
 
