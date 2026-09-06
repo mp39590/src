@@ -26484,21 +26484,21 @@ void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-	struct urtwm_tx_data *data = priv;
-	struct urtwm_softc *sc = data->sc;
-	struct ifnet *ifp = &sc->sc_ic.ic_if;
-	int s;
+//	struct urtwm_tx_data *data = priv;
+//	struct urtwm_softc *sc = data->sc;
+//	struct ifnet *ifp = &sc->sc_ic.ic_if;
+//	int s;
 //
-	s = splnet();
+//	s = splnet();
 	if (status != USBD_NORMAL_COMPLETION)
 		printf("%s: TX status=%d\n", __func__, status);
 //
-	/* We just released a Tx buffer, notify Tx. */
-	if (ifq_is_oactive(&ifp->if_snd)) {
-		ifq_clr_oactive(&ifp->if_snd);
-		urtwm_start(ifp);
-	}
-	splx(s);
+//	/* We just released a Tx buffer, notify Tx. */
+//	if (ifq_is_oactive(&ifp->if_snd)) {
+//		ifq_clr_oactive(&ifp->if_snd);
+//		urtwm_start(ifp);
+//	}
+//	splx(s);
 }
 //static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct sk_buff *skb,
 //                              usb_complete_t cb, void *context)
