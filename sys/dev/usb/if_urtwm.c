@@ -361,6 +361,13 @@ DECLARE_EWMA(thermal, 10, 4);
 
 #define RTW_SEC_ENGINE_EN               BIT(9)
 
+/* enum rtw_hw_key_type from Linux rtw88, same CAM block as sys/dev/ic/rtwn.c */
+#define RTW_CAM_ALGO_NONE               0
+#define RTW_CAM_ALGO_WEP40              1
+#define RTW_CAM_ALGO_TKIP               2
+#define RTW_CAM_ALGO_AES                4
+#define RTW_CAM_ALGO_WEP104             5
+
 #define SET_H2C_CMD_ID_CLASS(h2c_pkt, value)                                   \
         le32p_replace_bits((__le32 *)(h2c_pkt) + 0x00, value, GENMASK(7, 0))
 
@@ -25425,6 +25432,7 @@ struct rtw_dev {
 	struct rtw_fw_state fw;
 	struct rtw88_efuse efuse;
 	struct rtw_sec_desc sec;
+	struct rtw_vif vif;
 //	struct rtw_traffic_stats stats;
 	struct rtw_regd regd;
 //	struct rtw_bf_info bf_info;
@@ -29812,6 +29820,131 @@ void rtw_sec_enable_sec_engine(struct rtw_dev *rtwdev)
         rtw_write16(rtwdev, RTW_SEC_CONFIG, sec_config);
 }
 
+/*
+ * CAM (key table) programming. This is the same "CAM" MMIO block Realtek
+ * has reused since the RTL818x/RTL819x generation: sys/dev/ic/rtwn.c's
+ * rtwn_cam_write()/rtwn_set_key() drive the identical protocol on the older
+ * chip family (compare R92C_CAMWRITE/R92C_CAMCMD at 0x674/0x670 there with
+ * RTW_SEC_WRITE_REG/RTW_SEC_CMD_REG here) so that implementation is used as
+ * the reference for the bit layout below.
+ */
+static void
+rtw_sec_cam_write(struct rtw_dev *rtwdev, u32 addr, u32 data)
+{
+	rtw_write32(rtwdev, RTW_SEC_WRITE_REG, data);
+	rtw_write32(rtwdev, RTW_SEC_CMD_REG,
+	    RTW_SEC_CMD_POLLING | RTW_SEC_CMD_WRITE_ENABLE | addr);
+}
+
+static void
+rtw_sec_write_cam(struct rtw_dev *rtwdev, u8 entry, const u8 *macaddr,
+    const u8 *key, size_t keylen, u8 algo, u8 keyid, int group)
+{
+	u32 base = entry << RTW_SEC_CAM_ENTRY_SHIFT;
+	u8 keybuf[16];
+	u32 word;
+	int i;
+
+	memset(keybuf, 0, sizeof(keybuf));
+	memcpy(keybuf, key, MIN(keylen, sizeof(keybuf)));
+
+	for (i = 0; i < 4; i++) {
+		word = keybuf[i * 4] | (keybuf[i * 4 + 1] << 8) |
+		    (keybuf[i * 4 + 2] << 16) | (keybuf[i * 4 + 3] << 24);
+		rtw_sec_cam_write(rtwdev, base + 2 + i, word);
+	}
+
+	/* Write CTL1 (peer MAC high bytes), then CTL0 last to validate. */
+	word = macaddr[2] | (macaddr[3] << 8) | (macaddr[4] << 16) |
+	    (macaddr[5] << 24);
+	rtw_sec_cam_write(rtwdev, base + 1, word);
+
+	word = (keyid & 0x3) | ((algo & 0x7) << 2) | (group ? BIT(6) : 0) |
+	    (macaddr[0] << 16) | (macaddr[1] << 24) | BIT(15) /* valid */;
+	rtw_sec_cam_write(rtwdev, base, word);
+}
+
+static void
+rtw_sec_clear_cam(struct rtw_dev *rtwdev, u8 entry)
+{
+	u32 base = entry << RTW_SEC_CAM_ENTRY_SHIFT;
+	int i;
+
+	rtw_sec_cam_write(rtwdev, base, 0);
+	rtw_sec_cam_write(rtwdev, base + 1, 0);
+	for (i = 0; i < 4; i++)
+		rtw_sec_cam_write(rtwdev, base + 2 + i, 0);
+}
+
+/* CAM entry 4 is reserved for our one pairwise (PTK) key, as in rtwn.c. */
+#define RTW_SEC_CAM_PAIRWISE	4
+
+int
+urtwm_set_key(struct ieee80211com *ic, struct ieee80211_node *ni,
+    struct ieee80211_key *k)
+{
+	struct urtwm_softc *sc = ic->ic_softc;
+	struct rtw_dev *rtwdev = &sc->sc_sc.rtw_dev;
+	static const uint8_t etherzeroaddr[6] = { 0 };
+	const uint8_t *macaddr;
+	uint8_t algo;
+	int group, entry;
+
+	/* Defer setting of keys until the interface is brought up. */
+	if ((ic->ic_if.if_flags & (IFF_UP | IFF_RUNNING)) !=
+	    (IFF_UP | IFF_RUNNING))
+		return (0);
+
+	switch (k->k_cipher) {
+	case IEEE80211_CIPHER_WEP40:
+		algo = RTW_CAM_ALGO_WEP40;
+		break;
+	case IEEE80211_CIPHER_WEP104:
+		algo = RTW_CAM_ALGO_WEP104;
+		break;
+	case IEEE80211_CIPHER_TKIP:
+		algo = RTW_CAM_ALGO_TKIP;
+		break;
+	case IEEE80211_CIPHER_CCMP:
+		algo = RTW_CAM_ALGO_AES;
+		break;
+	default:
+		/* Fall back to software crypto for unsupported ciphers. */
+		return (ieee80211_set_key(ic, ni, k));
+	}
+
+	group = (k->k_flags & IEEE80211_KEY_GROUP) != 0;
+	if (group) {
+		macaddr = etherzeroaddr;
+		entry = k->k_id;
+	} else {
+		macaddr = ic->ic_bss->ni_macaddr;
+		entry = RTW_SEC_CAM_PAIRWISE;
+	}
+
+	rtw_sec_write_cam(rtwdev, entry, macaddr, k->k_key, k->k_len, algo,
+	    k->k_id, group);
+
+	return (0);
+}
+
+void
+urtwm_delete_key(struct ieee80211com *ic, struct ieee80211_node *ni,
+    struct ieee80211_key *k)
+{
+	struct urtwm_softc *sc = ic->ic_softc;
+	struct rtw_dev *rtwdev = &sc->sc_sc.rtw_dev;
+	int entry;
+
+	if (!(ic->ic_if.if_flags & IFF_RUNNING) ||
+	    ic->ic_state != IEEE80211_S_RUN)
+		return;
+
+	entry = (k->k_flags & IEEE80211_KEY_GROUP) ? k->k_id :
+	    RTW_SEC_CAM_PAIRWISE;
+	rtw_sec_clear_cam(rtwdev, entry);
+}
+
 void
 rtw_fw_send_phydm_info(struct rtw_dev *rtwdev)
 {
@@ -31199,7 +31332,7 @@ static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
 	u8 bcn_ctrl = 0;
 	struct urtwm_softc *sc = rtwdev->cookie;
 	struct ieee80211com *ic = &sc->sc_ic;
-	struct rtw_vif rtwvif;
+	struct rtw_vif *rtwvif = &rtwdev->vif;
 //
 //        if (rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_BCN_FILTER))
 //                vif->driver_flags |= IEEE80211_VIF_BEACON_FILTER |
@@ -31231,7 +31364,9 @@ static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
 //
 //        rtwvif->port = port;
 //        rtwvif->conf = &rtw_vif_port[port];
-        rtwvif.conf = &rtw_vif_port[port];
+        rtwvif->conf = &rtw_vif_port[port];
+	/* XXX: no per-station mac_id table yet, single AP peer uses id 0 */
+	rtwvif->mac_id = 0;
 //        rtw_leave_lps_deep(rtwdev);
 //
 //        switch (vif->type) {
@@ -31259,15 +31394,13 @@ static int rtw_ops_add_interface(struct rtw_dev *rtwdev)
 //        }
 //
 //        ether_addr_copy(rtwvif->mac_addr, vif->addr);
-	IEEE80211_ADDR_COPY(rtwvif.mac_addr, ic->ic_myaddr);
+	IEEE80211_ADDR_COPY(rtwvif->mac_addr, ic->ic_myaddr);
 	config |= PORT_SET_MAC_ADDR;
-//	rtwvif->net_type = net_type;
-	rtwvif.net_type = net_type;
+	rtwvif->net_type = net_type;
 	config |= PORT_SET_NET_TYPE;
-//	rtwvif->bcn_ctrl = bcn_ctrl;
-	rtwvif.bcn_ctrl = bcn_ctrl;
+	rtwvif->bcn_ctrl = bcn_ctrl;
 	config |= PORT_SET_BCN_CTRL;
-	rtw_vif_port_config(rtwdev, &rtwvif, config);
+	rtw_vif_port_config(rtwdev, rtwvif, config);
 //        rtw_core_port_switch(rtwdev, vif);
 //        rtw_recalc_lps(rtwdev, vif);
 //
@@ -31965,6 +32098,32 @@ rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 //		}
 		urtwm_next_scan(sc);
 		break;
+	case IEEE80211_S_AUTH:
+		/* Scan is over: stop the scan-time DIG/gain override. */
+		clear_bit(RTW_FLAG_SCANNING, rtwdev->flags);
+		clear_bit(RTW_FLAG_DIG_DISABLE, rtwdev->flags);
+
+		/* Scanning may have hopped away; retune to the target AP. */
+		rtw_set_channel(rtwdev);
+		break;
+	case IEEE80211_S_RUN:
+		if (ic->ic_opmode == IEEE80211_M_STA &&
+		    rtwdev->vif.conf != NULL) {
+			struct ieee80211_node *ni = ic->ic_bss;
+			struct rtw_vif *rtwvif = &rtwdev->vif;
+
+			IEEE80211_ADDR_COPY(rtwvif->bssid, ni->ni_bssid);
+			rtwvif->aid = IEEE80211_AID(ni->ni_associd);
+			rtwvif->net_type = RTW_NET_MGD_LINKED;
+
+			rtw_vif_port_config(rtwdev, rtwvif,
+			    PORT_SET_BSSID | PORT_SET_NET_TYPE |
+			    PORT_SET_AID);
+
+			printf("%s: associated, bssid=%s aid=%d\n", __func__,
+			    ether_sprintf(rtwvif->bssid), rtwvif->aid);
+		}
+		break;
 	default:
 		break;
 	}
@@ -32010,22 +32169,24 @@ urtwm_start(struct ifnet *ifp)
 	struct ieee80211_node *ni;
 	struct mbuf *m;
 
-	/* Send pending management frames first. */
+	if (!(ifp->if_flags & IFF_RUNNING) || ifq_is_oactive(&ifp->if_snd))
+		return;
+
 	for (;;) {
+		/* Send pending management frames first. */
 		m = mq_dequeue(&ic->ic_mgtq);
 		if (m != NULL) {
 			ni = m->m_pkthdr.ph_cookie;
 			goto sendit;
-		} else {
-			printf("%s: m is NULL\n", __func__);
-			return;
 		}
 
+		if (ic->ic_state != IEEE80211_S_RUN)
+			break;
+
+		/* Encapsulate and send data frames. */
 		m = ifq_dequeue(&ifp->if_snd);
-		if (m == NULL) {
-			printf("%s: m is NULL\n", __func__);
-			return;
-		}
+		if (m == NULL)
+			break;
 		if ((m = ieee80211_encap(ifp, m, &ni)) == NULL)
 			continue;
 sendit:
@@ -32062,7 +32223,7 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				ret = rtwdev->chip->ops->power_on(rtwdev);
 				if (ret)
 					return ret;
-//				rtw_sec_enable_sec_engine(rtwdev);
+				rtw_sec_enable_sec_engine(rtwdev);
 
 				// XXX TODO - maybe works without it?
 //				rtwdev->lps_conf.deep_mode = rtw_update_lps_deep_mode(rtwdev, &rtwdev->fw);
@@ -32080,8 +32241,7 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 
 				ifp->if_flags |= IFF_RUNNING;
 
-				// XXX testing idea of rtw_ops_add_interface()
-//				rtw_ops_add_interface(rtwdev);
+				rtw_ops_add_interface(rtwdev);
 
 				ieee80211_begin_scan(ifp);
 
@@ -32230,12 +32390,12 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	ic->ic_state = IEEE80211_S_INIT;
 
 	/* Set device capabilities. */
-	ic->ic_caps = 0;
+	ic->ic_caps =
+	    IEEE80211_C_WEP |		/* WEP. */
+	    IEEE80211_C_RSN;		/* WPA/RSN. */
 //	    IEEE80211_C_MONITOR |	/* Monitor mode supported. */
 //	    IEEE80211_C_SHPREAMBLE |	/* Short preamble supported. */
 //	    IEEE80211_C_SHSLOT |	/* Short slot time supported. */
-//	    IEEE80211_C_WEP |		/* WEP. */
-//	    IEEE80211_C_RSN;		/* WPA/RSN. */
 
 	IEEE80211_ADDR_COPY(ic->ic_myaddr, efuse->addr);
 
@@ -32273,6 +32433,8 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	/* Override state transition machine. */
 	sc->sc_newstate = ic->ic_newstate;
 	ic->ic_newstate = urtwm_newstate;
+	ic->ic_set_key = urtwm_set_key;
+	ic->ic_delete_key = urtwm_delete_key;
 
 	// iwx_preinit()
 	/* Configure channel information obtained from firmware. */
