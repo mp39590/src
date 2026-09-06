@@ -25922,7 +25922,7 @@ urtwm_write_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 	USETW(req.wIndex, 0);
 	USETW(req.wLength, len);
 
-#if 1
+#if 0
 	if (len == 1)
 		printf("%s: %08x -> 0x%02x\n", __func__, addr, *buf);
 	else if (len == 2)
@@ -25975,7 +25975,7 @@ urtwm_read_region_1(struct urtwm_softc *sc, uint16_t addr, uint8_t *buf,
 	USETW(req.wLength, len);
 
 	ret = (usbd_do_request(sc->sc_udev, &req, buf));
-#if 1
+#if 0
 	if (len == 1)
 		printf("%s: %08x <- %02x\n", __func__, addr, *buf);
 	else if (len == 2)
@@ -26385,13 +26385,13 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	int s;
 	int is_c2h = 0;
 	int error;
-	printf("%s: sc=%p\n", __func__, sc);
+//	printf("%s: sc=%p\n", __func__, sc);
 
 	pkt_len = GET_RX_DESC_PKT_LEN(data->buf);
 	is_c2h = GET_RX_DESC_C2H(data->buf);
 
-	printf("%s: pkt_len=%d\n", __func__, pkt_len);
-	printf("%s: is_c2h=%d\n", __func__, is_c2h);
+//	printf("%s: pkt_len=%d\n", __func__, pkt_len);
+//	printf("%s: is_c2h=%d\n", __func__, is_c2h);
 
 	MGETHDR(m, M_DONTWAIT, MT_DATA);
 	if (__predict_false(m == NULL)) {
@@ -31667,7 +31667,7 @@ void rtw_update_channel(struct rtw_dev *rtwdev, u8 center_channel,
 // XXX: We scan only channel 1
 void rtw_set_channel(struct rtw_dev *rtwdev)
 {
-	printf("%s:\n", __func__);
+//	printf("%s:\n", __func__);
 	const struct rtw_chip_info *chip = rtwdev->chip;
 	struct urtwm_softc *sc = rtwdev->cookie;
 	struct ieee80211com *ic = &sc->sc_ic;
@@ -31686,7 +31686,7 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 //        primary_chan = ch_param.primary_chan;
 	primary_chan = ieee80211_mhz2ieee(ic->ic_bss->ni_chan->ic_freq, IEEE80211_CHAN_2GHZ);
 //	primary_chan = 1;
-        printf("%s: center_chan=%i primary_chan=%i\n", __func__, center_chan, primary_chan);
+//        printf("%s: center_chan=%i primary_chan=%i\n", __func__, center_chan, primary_chan);
 //        bandwidth = ch_param.bandwidth;
 	bandwidth = RTW_CHANNEL_WIDTH_20;
 //        band = ch_param.center_chan > 14 ? RTW_BAND_5G : RTW_BAND_2G;
