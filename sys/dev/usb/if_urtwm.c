@@ -26633,11 +26633,8 @@ static int rtw_usb_write_data(struct rtw_dev *rtwdev,
 	m->m_nextpkt = NULL;
 	m->m_type = 0;
 	m->m_flags = 0;
-	if (qsel == MYQUEUE) {
-		printf("%s: will send qsel=%i\n", __func__, qsel);
-//                rtw_tx_mgmt_pkt_info_update(rtwdev, pkt_info);
-                printf("%s: pkt_info->bmc=%i\n", __func__, pkt_info->bmc);
-	}
+	printf("%s: will send qsel=%i\n", __func__, qsel);
+	printf("%s: pkt_info->bmc=%i\n", __func__, pkt_info->bmc);
 	rtw_tx_fill_tx_desc(pkt_info, data);
 	rtw_tx_fill_txdesc_checksum(rtwdev, pkt_info, data);
 
@@ -31758,6 +31755,32 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 
 // {{{ rtw_tx
 
+/*
+ * XXX: matches rtw_usb_tx_queue_mapping_to_qsel() in Linux's usb.c. We
+ * used to hardcode every packet's qsel to TX_DESC_QSEL_HIGH (mapped to
+ * the dma_map_hi USB endpoint) regardless of frame type -- which,
+ * combined with the mybuf[] hack that discarded the real frame content
+ * anyway, meant this was never actually exercised. Now that real
+ * frames are sent, management/control frames (AUTH, ASSOC, ...) need
+ * to go to TX_DESC_QSEL_MGMT (dma_map_mg) or the chip's MAC does not
+ * transmit them -- confirmed via an external sniffer seeing nothing
+ * at all once real frames replaced the hardcoded blob.
+ */
+static uint8_t
+urtwm_tx_queue_mapping_to_qsel(struct mbuf *m)
+{
+	struct ieee80211_frame *wh = mtod(m, struct ieee80211_frame *);
+	uint8_t type = wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK;
+
+	if (type == IEEE80211_FC0_TYPE_MGT || type == IEEE80211_FC0_TYPE_CTL)
+		return TX_DESC_QSEL_MGMT;
+	else if (IEEE80211_IS_MULTICAST(wh->i_addr1))
+		return TX_DESC_QSEL_HIGH;
+	else
+		/* XXX: no per-TID AC queues wired up yet. */
+		return TX_DESC_QSEL_BEACON;
+}
+
 int rtw_usb_tx_write(struct rtw_dev *rtwdev,
     struct rtw_tx_pkt_info *pkt_info,
     struct mbuf *m)
@@ -31768,10 +31791,7 @@ int rtw_usb_tx_write(struct rtw_dev *rtwdev,
 //        u8 *pkt_desc;
 //        int ep;
 //
-//        pkt_info->qsel = rtw_usb_tx_queue_mapping_to_qsel(skb);
-	// TODO: set manually
-//        pkt_info->qsel = TX_DESC_QSEL_MGMT;
-        pkt_info->qsel = MYQUEUE;
+	pkt_info->qsel = urtwm_tx_queue_mapping_to_qsel(m);
 //        pkt_desc = skb_push(skb, chip->tx_pkt_desc_sz);
 //        memset(pkt_desc, 0, chip->tx_pkt_desc_sz);
 //        ep = qsel_to_ep(rtwusb, pkt_info->qsel);
