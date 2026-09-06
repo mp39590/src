@@ -26425,7 +26425,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 		wh = (struct ieee80211_frame *)(rx_desc + pkt_offset);
 
 		if (!is_c2h) {
-			/* RCR has BIT_APP_FCS set: pkt_len includes the trailing FCS. */
+			/* trailing FCS */
 			pkt_len -= URTWM_FCS_LEN;
 
 			MGETHDR(m, M_DONTWAIT, MT_DATA);
@@ -26454,9 +26454,6 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 			    wh->i_fc[0], wh->i_fc[1],
 			    GET_RX_DESC_CRC32(rx_desc),
 			    GET_RX_DESC_ICV_ERR(rx_desc));
-			/* ether_sprintf() has one static buffer --
-			 * can't combine multiple calls in one
-			 * printf(). */
 			printf("%s: #%u pkt#%d a1=%s\n", __func__,
 			    rxcount, npkts,
 			    ether_sprintf(wh->i_addr1));
@@ -32067,10 +32064,6 @@ urtwm_start(struct ifnet *ifp)
 		if ((m = ieee80211_encap(ifp, m, &ni)) == NULL)
 			continue;
 
-		/*
-		 * No hardware crypto: software-encrypt now that
-		 * ieee80211_encap() has set the PROTECTED bit for us.
-		 */
 		wh = mtod(m, struct ieee80211_frame *);
 		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
 			k = ieee80211_get_txkey(ic, wh, ni);
