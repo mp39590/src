@@ -31771,14 +31771,27 @@ urtwm_tx_queue_mapping_to_qsel(struct mbuf *m)
 {
 	struct ieee80211_frame *wh = mtod(m, struct ieee80211_frame *);
 	uint8_t type = wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK;
+	uint16_t tid;
 
 	if (type == IEEE80211_FC0_TYPE_MGT || type == IEEE80211_FC0_TYPE_CTL)
 		return TX_DESC_QSEL_MGMT;
-	else if (IEEE80211_IS_MULTICAST(wh->i_addr1))
+	if (IEEE80211_IS_MULTICAST(wh->i_addr1))
 		return TX_DESC_QSEL_HIGH;
-	else
-		/* XXX: no per-TID AC queues wired up yet. */
-		return TX_DESC_QSEL_BEACON;
+
+	/*
+	 * XXX: unicast data (this is also where EAPOL/4-way-handshake
+	 * frames ride) matches upstream's "qsel = skb->priority" path --
+	 * qsel_to_ep[] already folds TID -> AC -> USB endpoint for
+	 * TX_DESC_QSEL_TID0..TID7 (TID0/3->BE, TID1/2->BK, TID4/5->VI,
+	 * TID6/7->VO, same as WMM). Previously this fell through to
+	 * TX_DESC_QSEL_BEACON, which shares dma_map_hi with HIGH and is
+	 * meant for AP-mode beacon traffic, not station unicast data --
+	 * that's why the WPA handshake was stalling. Default to TID 0
+	 * (best effort) for non-QoS frames such as EAPOL.
+	 */
+	tid = ieee80211_has_qos(wh) ?
+	    (ieee80211_get_qos(wh) & IEEE80211_QOS_TID) : 0;
+	return TX_DESC_QSEL_TID0 + tid;
 }
 
 int rtw_usb_tx_write(struct rtw_dev *rtwdev,
