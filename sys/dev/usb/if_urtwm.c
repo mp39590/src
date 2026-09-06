@@ -361,13 +361,6 @@ DECLARE_EWMA(thermal, 10, 4);
 
 #define RTW_SEC_ENGINE_EN               BIT(9)
 
-/* enum rtw_hw_key_type from Linux rtw88, same CAM block as sys/dev/ic/rtwn.c */
-#define RTW_CAM_ALGO_NONE               0
-#define RTW_CAM_ALGO_WEP40              1
-#define RTW_CAM_ALGO_TKIP               2
-#define RTW_CAM_ALGO_AES                4
-#define RTW_CAM_ALGO_WEP104             5
-
 #define SET_H2C_CMD_ID_CLASS(h2c_pkt, value)                                   \
         le32p_replace_bits((__le32 *)(h2c_pkt) + 0x00, value, GENMASK(7, 0))
 
@@ -29820,131 +29813,6 @@ void rtw_sec_enable_sec_engine(struct rtw_dev *rtwdev)
         rtw_write16(rtwdev, RTW_SEC_CONFIG, sec_config);
 }
 
-/*
- * CAM (key table) programming. This is the same "CAM" MMIO block Realtek
- * has reused since the RTL818x/RTL819x generation: sys/dev/ic/rtwn.c's
- * rtwn_cam_write()/rtwn_set_key() drive the identical protocol on the older
- * chip family (compare R92C_CAMWRITE/R92C_CAMCMD at 0x674/0x670 there with
- * RTW_SEC_WRITE_REG/RTW_SEC_CMD_REG here) so that implementation is used as
- * the reference for the bit layout below.
- */
-static void
-rtw_sec_cam_write(struct rtw_dev *rtwdev, u32 addr, u32 data)
-{
-	rtw_write32(rtwdev, RTW_SEC_WRITE_REG, data);
-	rtw_write32(rtwdev, RTW_SEC_CMD_REG,
-	    RTW_SEC_CMD_POLLING | RTW_SEC_CMD_WRITE_ENABLE | addr);
-}
-
-static void
-rtw_sec_write_cam(struct rtw_dev *rtwdev, u8 entry, const u8 *macaddr,
-    const u8 *key, size_t keylen, u8 algo, u8 keyid, int group)
-{
-	u32 base = entry << RTW_SEC_CAM_ENTRY_SHIFT;
-	u8 keybuf[16];
-	u32 word;
-	int i;
-
-	memset(keybuf, 0, sizeof(keybuf));
-	memcpy(keybuf, key, MIN(keylen, sizeof(keybuf)));
-
-	for (i = 0; i < 4; i++) {
-		word = keybuf[i * 4] | (keybuf[i * 4 + 1] << 8) |
-		    (keybuf[i * 4 + 2] << 16) | (keybuf[i * 4 + 3] << 24);
-		rtw_sec_cam_write(rtwdev, base + 2 + i, word);
-	}
-
-	/* Write CTL1 (peer MAC high bytes), then CTL0 last to validate. */
-	word = macaddr[2] | (macaddr[3] << 8) | (macaddr[4] << 16) |
-	    (macaddr[5] << 24);
-	rtw_sec_cam_write(rtwdev, base + 1, word);
-
-	word = (keyid & 0x3) | ((algo & 0x7) << 2) | (group ? BIT(6) : 0) |
-	    (macaddr[0] << 16) | (macaddr[1] << 24) | BIT(15) /* valid */;
-	rtw_sec_cam_write(rtwdev, base, word);
-}
-
-static void
-rtw_sec_clear_cam(struct rtw_dev *rtwdev, u8 entry)
-{
-	u32 base = entry << RTW_SEC_CAM_ENTRY_SHIFT;
-	int i;
-
-	rtw_sec_cam_write(rtwdev, base, 0);
-	rtw_sec_cam_write(rtwdev, base + 1, 0);
-	for (i = 0; i < 4; i++)
-		rtw_sec_cam_write(rtwdev, base + 2 + i, 0);
-}
-
-/* CAM entry 4 is reserved for our one pairwise (PTK) key, as in rtwn.c. */
-#define RTW_SEC_CAM_PAIRWISE	4
-
-int
-urtwm_set_key(struct ieee80211com *ic, struct ieee80211_node *ni,
-    struct ieee80211_key *k)
-{
-	struct urtwm_softc *sc = ic->ic_softc;
-	struct rtw_dev *rtwdev = &sc->sc_sc.rtw_dev;
-	static const uint8_t etherzeroaddr[6] = { 0 };
-	const uint8_t *macaddr;
-	uint8_t algo;
-	int group, entry;
-
-	/* Defer setting of keys until the interface is brought up. */
-	if ((ic->ic_if.if_flags & (IFF_UP | IFF_RUNNING)) !=
-	    (IFF_UP | IFF_RUNNING))
-		return (0);
-
-	switch (k->k_cipher) {
-	case IEEE80211_CIPHER_WEP40:
-		algo = RTW_CAM_ALGO_WEP40;
-		break;
-	case IEEE80211_CIPHER_WEP104:
-		algo = RTW_CAM_ALGO_WEP104;
-		break;
-	case IEEE80211_CIPHER_TKIP:
-		algo = RTW_CAM_ALGO_TKIP;
-		break;
-	case IEEE80211_CIPHER_CCMP:
-		algo = RTW_CAM_ALGO_AES;
-		break;
-	default:
-		/* Fall back to software crypto for unsupported ciphers. */
-		return (ieee80211_set_key(ic, ni, k));
-	}
-
-	group = (k->k_flags & IEEE80211_KEY_GROUP) != 0;
-	if (group) {
-		macaddr = etherzeroaddr;
-		entry = k->k_id;
-	} else {
-		macaddr = ic->ic_bss->ni_macaddr;
-		entry = RTW_SEC_CAM_PAIRWISE;
-	}
-
-	rtw_sec_write_cam(rtwdev, entry, macaddr, k->k_key, k->k_len, algo,
-	    k->k_id, group);
-
-	return (0);
-}
-
-void
-urtwm_delete_key(struct ieee80211com *ic, struct ieee80211_node *ni,
-    struct ieee80211_key *k)
-{
-	struct urtwm_softc *sc = ic->ic_softc;
-	struct rtw_dev *rtwdev = &sc->sc_sc.rtw_dev;
-	int entry;
-
-	if (!(ic->ic_if.if_flags & IFF_RUNNING) ||
-	    ic->ic_state != IEEE80211_S_RUN)
-		return;
-
-	entry = (k->k_flags & IEEE80211_KEY_GROUP) ? k->k_id :
-	    RTW_SEC_CAM_PAIRWISE;
-	rtw_sec_clear_cam(rtwdev, entry);
-}
-
 void
 rtw_fw_send_phydm_info(struct rtw_dev *rtwdev)
 {
@@ -32223,7 +32091,13 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				ret = rtwdev->chip->ops->power_on(rtwdev);
 				if (ret)
 					return ret;
-				rtw_sec_enable_sec_engine(rtwdev);
+				/*
+				 * XXX: software crypto only for now, leave
+				 * the hw sec engine (and RX_DEC_EN) off so
+				 * it doesn't touch incoming ciphertext before
+				 * net80211's software CCMP gets to it.
+				 */
+//				rtw_sec_enable_sec_engine(rtwdev);
 
 				// XXX TODO - maybe works without it?
 //				rtwdev->lps_conf.deep_mode = rtw_update_lps_deep_mode(rtwdev, &rtwdev->fw);
@@ -32448,8 +32322,15 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	/* Override state transition machine. */
 	sc->sc_newstate = ic->ic_newstate;
 	ic->ic_newstate = urtwm_newstate;
-	ic->ic_set_key = urtwm_set_key;
-	ic->ic_delete_key = urtwm_delete_key;
+	/*
+	 * No hardware key install: ic_set_key/ic_delete_key stay at the
+	 * ieee80211_ifattach() defaults (ieee80211_set_key/delete_key),
+	 * i.e. software crypto. TX already marks every frame sec_type=0
+	 * (see rtw_tx_pkt_info_update()), so hardware never touches
+	 * software-encrypted outgoing frames; leaving the sec engine
+	 * disabled (see urtwm_ioctl()) keeps it from touching incoming
+	 * ciphertext either, so net80211's software CCMP can decrypt it.
+	 */
 
 	// iwx_preinit()
 	/* Configure channel information obtained from firmware. */
