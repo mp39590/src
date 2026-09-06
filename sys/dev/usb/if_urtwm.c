@@ -26488,21 +26488,22 @@ void
 urtwm_txeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-//	struct urtwm_tx_data *data = priv;
-//	struct urtwm_softc *sc = data->sc;
-//	struct ifnet *ifp = &sc->sc_ic.ic_if;
-//	int s;
-//
-//	s = splnet();
-	if (status != USBD_NORMAL_COMPLETION)
+	uint32_t actlen = 0;
+
+	if (status != USBD_NORMAL_COMPLETION) {
 		printf("%s: TX status=%d\n", __func__, status);
-//
-//	/* We just released a Tx buffer, notify Tx. */
-//	if (ifq_is_oactive(&ifp->if_snd)) {
-//		ifq_clr_oactive(&ifp->if_snd);
-//		urtwm_start(ifp);
-//	}
-//	splx(s);
+		if (status == USBD_STALLED)
+			usbd_clear_endpoint_stall_async(xfer->pipe);
+		return;
+	}
+
+	/*
+	 * XXX DIAGNOSTIC: confirm the USB write for this frame actually
+	 * completed successfully at the hardware level -- we previously
+	 * had zero visibility into this (only failures were printed).
+	 */
+	usbd_get_xfer_status(xfer, NULL, NULL, &actlen, NULL);
+	printf("%s: TX complete, actlen=%u\n", __func__, actlen);
 }
 //static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct sk_buff *skb,
 //                              usb_complete_t cb, void *context)
@@ -26549,39 +26550,21 @@ static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct mbuf *m)
 		return ENOMEM;
 	}
 	pipe = sc->tx_pipe[ep];
-//	if (qsel == MYQUEUE)
-//		usbd_dump_pipe(pipe);
-//	for (int i = 0; i < m->m_len; i++) {
-//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
-//	}
-	char mybuf[] = {
-		0x49,0x00,0x30,0x85,0x00,0x12,0x08,0x00,0x00,0x00,0x00,0x00,0x00,0x05,0x00,0x00,
-		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x71,0x92,0x00,0x00,
-		0x00,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-		0x40,0x00,0x00,0x00,0xff,0xff,0xff,0xff,0xff,0xff,0x9c,0x53,0x22,0x4d,0xfc,0xf3,
-		0xff,0xff,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x01,0x08,0x02,0x04,0x0b,0x16,
-		0x0c,0x12,0x18,0x24,0x32,0x04,0x30,0x48,0x60,0x6c,0x03,0x01,0x01,0x2d,0x1a,0x6f,
-		0x19,0x13,0xff,0xff,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x2c,0x01,0x01,0x00,
-		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
-	};
 
-	if (qsel == MYQUEUE) {
-		//		printf("%s: sizeof(mybuf)=%zu\n", __func__, sizeof(mybuf));
-		memcpy(buf, mybuf, sizeof(mybuf));
-	} else {
-//		printf("%s: sizeof(mybuf)=%d\n", __func__, m->m_len);
-		memcpy(buf, m->m_data, m->m_len);
-	}
-//	printf("%s: m->m_len=%d\n", __func__, m->m_len);
-	if (qsel == MYQUEUE) {
-		usbd_setup_xfer(xfer, pipe, NULL, buf, sizeof(mybuf),
-		    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
-		    urtwm_txeof);
-	} else {
-		usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
-		    USBD_FORCE_SHORT_XFER | USBD_NO_COPY , 5000 /*timeout*/,
-		    urtwm_txeof);
-	}
+	/*
+	 * XXX: this used to memcpy() a hardcoded captured-probe-request
+	 * byte blob instead of the real frame whenever qsel == MYQUEUE
+	 * -- which is unconditionally true for every packet we send (see
+	 * rtw_usb_tx_write()), so every single outgoing frame (including
+	 * AUTH) was silently replaced with that same fixed broadcast
+	 * probe request before ever reaching the wire. Always send the
+	 * actual constructed frame.
+	 */
+	memcpy(buf, m->m_data, m->m_len);
+
+	usbd_setup_xfer(xfer, pipe, NULL, buf, m->m_len,
+	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, 5000 /*timeout*/,
+	    urtwm_txeof);
 	error = usbd_transfer(xfer);
 	if (error != 0 && error != USBD_IN_PROGRESS)
 		printf("%s: could not set up new transfer: %d\n", __func__, error);
@@ -29600,17 +29583,6 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 	rtwdev->hal.rcr = BIT_APP_FCS | BIT_APP_MIC | BIT_APP_ICV |
 	    BIT_PKTCTL_DLEN | BIT_HTC_LOC_CTRL | BIT_APP_PHYSTS |
 	    BIT_AB | BIT_AM | BIT_APM;
-	/*
-	 * XXX DIAGNOSTIC: every frame ever successfully RXed so far has
-	 * been broadcast (beacons/probe-reqs) -- never a unicast-to-us
-	 * frame. BIT_APM above is supposed to accept those (matched
-	 * against the MACID register rtw_ops_add_interface() programs),
-	 * but that path has zero confirmed evidence it actually works.
-	 * BIT_AAP forces full promiscuous (bypass address match) to test
-	 * whether the missing AUTH response is an RX-filter problem or
-	 * not. Revert this once that's answered either way.
-	 */
-	rtwdev->hal.rcr |= BIT_AAP;
 //
 //        ret = rtw_load_firmware(rtwdev, RTW_NORMAL_FW);
 //        if (ret) {
@@ -31726,7 +31698,18 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 		return;
 	}
 
-//        rtw_update_channel(rtwdev, center_chan, primary_chan, band, bandwidth);
+	/*
+	 * XXX: this was never called, so hal->current_band_type stayed at
+	 * its zero-initialized value forever, which is NOT RTW_BAND_2G
+	 * (== BIT(NL80211_BAND_2GHZ) == 1) -- rtw_tx_pkt_info_update_rate()
+	 * checks this field and was silently taking the "else" (11G/6M)
+	 * branch instead of the intended 11B/1M one on every single TX.
+	 */
+	rtw_update_channel(rtwdev, center_chan, primary_chan, band, bandwidth);
+
+	printf("%s: tuning to channel %d (band=%d bw=%d primary_idx=%d)\n",
+	    __func__, center_chan, band, bandwidth,
+	    hal->current_primary_channel_index);
 
 	// XXX: is NULL for 8822bu
 //        if (rtwdev->scan_info.op_chan)
@@ -31999,6 +31982,10 @@ rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		/* Scan is over: stop the scan-time DIG/gain override. */
 		clear_bit(RTW_FLAG_SCANNING, rtwdev->flags);
 		clear_bit(RTW_FLAG_DIG_DISABLE, rtwdev->flags);
+
+		printf("%s: AUTH target bssid=%s chan=%d\n", __func__,
+		    ether_sprintf(ic->ic_bss->ni_bssid),
+		    ieee80211_chan2ieee(ic, ic->ic_bss->ni_chan));
 
 		/* Scanning may have hopped away; retune to the target AP. */
 		rtw_set_channel(rtwdev);
