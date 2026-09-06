@@ -26414,7 +26414,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	//		printf("0x%x ", (uint8_t)m->m_data[i]);
 	//	printf("\n");
 
-	ieee80211_dump_pkt((uint8_t *)wh, pkt_len, 0, 0);
+//	ieee80211_dump_pkt((uint8_t *)wh, pkt_len, 0, 0);
 
 	s = splnet();
 
@@ -31377,7 +31377,7 @@ static void rtw8822b_set_channel_rf(struct rtw_dev *rtwdev, u8 channel, u8 bw)
 
         rtw_write_rf(rtwdev, RF_PATH_A, 0x18, RFREG_MASK, rf_reg18);
         if (hal->rf_type > RF_1T1R) {
-		printf("%s: ok\n", __func__);
+//		printf("%s: ok\n", __func__);
 		rtw_write_rf(rtwdev, RF_PATH_B, 0x18, RFREG_MASK, rf_reg18);
 	} else
 		printf("%s: not ok\n", __func__);
@@ -31948,7 +31948,7 @@ rtw88_newstate(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		break;
 	case IEEE80211_S_SCAN:
 		val32 = rtw_read32(rtwdev, REG_RCR);
-		printf("%s: REG_RCR=0x%x\n", __func__, val32);
+//		printf("%s: REG_RCR=0x%x\n", __func__, val32);
 		// XXX: our chip doesn't have FW_FEATURE_SCAN_OFFLOAD (tested on
 		// ubutntu)
 //		rtw_ops_hw_scan(rtwdev);
