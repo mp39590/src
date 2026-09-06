@@ -26381,7 +26381,8 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	struct ieee80211_rxinfo rxi;
 	struct mbuf *m;
 	uint32_t pkt_len;
-	uint32_t pkt_offset = 56; /* got from linux dump */
+	uint32_t pkt_offset;
+	uint32_t drv_info_sz, shift;
 	int s;
 	int is_c2h = 0;
 	int error;
@@ -26390,12 +26391,25 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	pkt_len = GET_RX_DESC_PKT_LEN(data->buf);
 	is_c2h = GET_RX_DESC_C2H(data->buf);
 
+	/*
+	 * XXX: pkt_offset used to be hardcoded to 56 ("got from linux
+	 * dump"), i.e. only correct for the one probe response frame it
+	 * was measured from. drv_info_sz/shift are per-packet variable
+	 * (see rtw88's rx desc layout), so compute the real offset:
+	 * fixed rx_pkt_desc_sz (24 for this chip, see the commented-out
+	 * rtw8822b_hw_spec.rx_pkt_desc_sz) + drv_info + alignment shift.
+	 */
+	drv_info_sz = GET_RX_DESC_DRV_INFO_SIZE(data->buf) * 8;
+	shift = GET_RX_DESC_SHIFT(data->buf);
+	pkt_offset = 24 + drv_info_sz + shift;
+
 //	printf("%s: pkt_len=%d\n", __func__, pkt_len);
 //	printf("%s: is_c2h=%d\n", __func__, is_c2h);
 
 	MGETHDR(m, M_DONTWAIT, MT_DATA);
 	if (__predict_false(m == NULL)) {
 		printf("%s: m is NULL\n", __func__);
+		setup_rx(sc);
 		return;
 	}
 	if (pkt_len > MHLEN) {
@@ -26403,6 +26417,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 		if (__predict_false(!(m->m_flags & M_EXT))) {
 			printf("%s: !M_EXT\n", __func__);
 			m_freem(m);
+			setup_rx(sc);
 			return;
 		}
 	}
