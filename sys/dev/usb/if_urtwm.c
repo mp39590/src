@@ -28941,7 +28941,7 @@ setup_rx(struct urtwm_softc *sc)
 	//		printf("%s: m->m_data[%i]=0x%02x\n", __func__, i, m->m_data[i]);
 	//	}
 	usbd_setup_xfer(xfer, sc->rx_pipe, data, data->buf, RTW_USB_MAX_RECVBUF_SZ,
-	    USBD_FORCE_SHORT_XFER | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
+	    USBD_SHORT_XFER_OK | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
 	    urtwm_rxeof);
 	error = usbd_transfer(xfer);
 	printf("%s: rx xfer error=%i\n", __func__, error);
