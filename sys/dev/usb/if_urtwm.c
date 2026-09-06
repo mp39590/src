@@ -31581,13 +31581,28 @@ static void rtw8822b_set_channel(struct rtw_dev *rtwdev, u8 channel, u8 bw,
 
         rfe_info = &rtw8822b_rfe_info[efuse->rfe_option];
 
-//	rtw8822b_set_channel_bb(rtwdev, channel, bw, primary_chan_idx);
-//	rtw_set_channel_mac(rtwdev, channel, bw, primary_chan_idx);
+	rtw8822b_set_channel_bb(rtwdev, channel, bw, primary_chan_idx);
+	rtw_set_channel_mac(rtwdev, channel, bw, primary_chan_idx);
 	rtw8822b_set_channel_rf(rtwdev, channel, bw);
-//	rtw8822b_set_channel_rxdfir(rtwdev, bw);
-//	rtw8822b_toggle_igi(rtwdev);
-//	rtw8822b_set_channel_cca(rtwdev, channel, bw, rfe_info);
-//	(*rfe_info->rtw_set_channel_rfe)(rtwdev, channel);
+	rtw8822b_set_channel_rxdfir(rtwdev, bw);
+	rtw8822b_toggle_igi(rtwdev);
+	/*
+	 * XXX: rtw8822b_rfe_info[] is a sparse table -- only rfe_option
+	 * 2/3/5 have entries (matches upstream Linux rtw8822b.c, which
+	 * only ships CCUT/RFE-switch tables for those board variants).
+	 * Guard instead of blindly dereferencing a NULL cca_ccut or
+	 * rtw_set_channel_rfe for any other rfe_option.
+	 */
+	if (rfe_info->cca_ccut_2g != NULL && rfe_info->cca_ccut_5g != NULL)
+		rtw8822b_set_channel_cca(rtwdev, channel, bw, rfe_info);
+	else
+		printf("%s: no CCA table for rfe_option %d, skipping\n",
+		    __func__, efuse->rfe_option);
+	if (rfe_info->rtw_set_channel_rfe != NULL)
+		(*rfe_info->rtw_set_channel_rfe)(rtwdev, channel);
+	else
+		printf("%s: no RFE switch fn for rfe_option %d, skipping\n",
+		    __func__, efuse->rfe_option);
 }
 
 
