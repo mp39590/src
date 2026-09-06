@@ -26368,17 +26368,6 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
 
 static int setup_rx(struct urtwm_softc *sc);
 
-static int
-urtwm_rx_is_boring(struct ieee80211_frame *wh)
-{
-	uint8_t type = wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK;
-	uint8_t subtype = wh->i_fc[0] & IEEE80211_FC0_SUBTYPE_MASK;
-
-	return (type == IEEE80211_FC0_TYPE_MGT &&
-	    (subtype == IEEE80211_FC0_SUBTYPE_BEACON ||
-	    subtype == IEEE80211_FC0_SUBTYPE_PROBE_RESP));
-}
-
 void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
@@ -26396,7 +26385,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	uint8_t *rx_desc, *bufend;
 	uint32_t len;
 	uint32_t pkt_len, pkt_offset, drv_info_sz, shift, skb_len, next_pkt;
-	int s, npkts = 0, interesting = 0;
+	int s, npkts = 0;
 	int is_c2h;
 
 	++rxcount;
@@ -26424,13 +26413,6 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 		pkt_offset = 24 + drv_info_sz + shift;
 		skb_len = pkt_len + pkt_offset;
 
-		/*
-		 * Same bounds-check reasoning as before: pkt_len is a raw
-		 * 14-bit field (max 16383), m only ever gets one MCLBYTES
-		 * cluster, and skb_len must not run past what this xfer
-		 * actually delivered. pkt_len must also be more than just
-		 * the trailing FCS (see below).
-		 */
 		if (pkt_len <= URTWM_FCS_LEN || pkt_len > MCLBYTES ||
 		    (uint32_t)(bufend - rx_desc) < skb_len) {
 			printf("%s: bogus pkt_len=%u pkt_offset=%u at "
@@ -26463,30 +26445,27 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 			memcpy(mtod(m, uint8_t *), wh, pkt_len);
 			m->m_pkthdr.len = m->m_len = pkt_len;
 
-			if (!urtwm_rx_is_boring(wh)) {
-				interesting = 1;
-				printf("%s: #%u pkt#%d pkt_len=%u "
-				    "drv_info_sz=%u shift=%u pkt_offset=%u "
-				    "fc0=0x%02x fc1=0x%02x crc_err=%d "
-				    "icv_err=%d\n",
-				    __func__, rxcount, npkts, pkt_len,
-				    drv_info_sz, shift, pkt_offset,
-				    wh->i_fc[0], wh->i_fc[1],
-				    GET_RX_DESC_CRC32(rx_desc),
-				    GET_RX_DESC_ICV_ERR(rx_desc));
-				/* ether_sprintf() has one static buffer --
-				 * can't combine multiple calls in one
-				 * printf(). */
-				printf("%s: #%u pkt#%d a1=%s\n", __func__,
-				    rxcount, npkts,
-				    ether_sprintf(wh->i_addr1));
-				printf("%s: #%u pkt#%d a2=%s\n", __func__,
-				    rxcount, npkts,
-				    ether_sprintf(wh->i_addr2));
-				printf("%s: #%u pkt#%d a3=%s\n", __func__,
-				    rxcount, npkts,
-				    ether_sprintf(wh->i_addr3));
-			}
+			printf("%s: #%u pkt#%d pkt_len=%u "
+			    "drv_info_sz=%u shift=%u pkt_offset=%u "
+			    "fc0=0x%02x fc1=0x%02x crc_err=%d "
+			    "icv_err=%d\n",
+			    __func__, rxcount, npkts, pkt_len,
+			    drv_info_sz, shift, pkt_offset,
+			    wh->i_fc[0], wh->i_fc[1],
+			    GET_RX_DESC_CRC32(rx_desc),
+			    GET_RX_DESC_ICV_ERR(rx_desc));
+			/* ether_sprintf() has one static buffer --
+			 * can't combine multiple calls in one
+			 * printf(). */
+			printf("%s: #%u pkt#%d a1=%s\n", __func__,
+			    rxcount, npkts,
+			    ether_sprintf(wh->i_addr1));
+			printf("%s: #%u pkt#%d a2=%s\n", __func__,
+			    rxcount, npkts,
+			    ether_sprintf(wh->i_addr2));
+			printf("%s: #%u pkt#%d a3=%s\n", __func__,
+			    rxcount, npkts,
+			    ether_sprintf(wh->i_addr3));
 
 			ni = ieee80211_find_rxnode(ic, wh);
 			memset(&rxi, 0, sizeof(rxi));
@@ -26505,8 +26484,7 @@ next:
 	}
 	splx(s);
 
-	/* A multi-packet xfer is itself notable (see the loop comment above). */
-	if (interesting || npkts != 1)
+	if (npkts != 1)
 		printf("%s: #%u found %d packet(s) in this xfer (len=%u)\n",
 		    __func__, rxcount, npkts, len);
 
@@ -32186,13 +32164,6 @@ urtwm_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 	}
 
 	if (error == ENETRESET) {
-		/*
-		 * ieee80211_ioctl() returns ENETRESET whenever a config
-		 * change (nwid, wpakey, ...) requires the driver to
-		 * (re)join the network. We don't have a full stop/init
-		 * cycle wired up yet (unlike rtwn_ioctl()'s rtwn_stop()+
-		 * rtwn_init()), so just kick off a fresh scan.
-		 */
 		if ((ifp->if_flags & (IFF_UP | IFF_RUNNING)) ==
 		    (IFF_UP | IFF_RUNNING))
 			ieee80211_begin_scan(ifp);
@@ -32378,15 +32349,6 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	/* Override state transition machine. */
 	sc->sc_newstate = ic->ic_newstate;
 	ic->ic_newstate = urtwm_newstate;
-	/*
-	 * No hardware key install: ic_set_key/ic_delete_key stay at the
-	 * ieee80211_ifattach() defaults (ieee80211_set_key/delete_key),
-	 * i.e. software crypto. TX already marks every frame sec_type=0
-	 * (see rtw_tx_pkt_info_update()), so hardware never touches
-	 * software-encrypted outgoing frames; leaving the sec engine
-	 * disabled (see urtwm_ioctl()) keeps it from touching incoming
-	 * ciphertext either, so net80211's software CCMP can decrypt it.
-	 */
 
 	// iwx_preinit()
 	/* Configure channel information obtained from firmware. */
