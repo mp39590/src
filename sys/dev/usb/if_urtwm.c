@@ -26363,6 +26363,9 @@ static int qsel_to_ep(struct rtw_dev *rtwdev, unsigned int qsel)
 #define GET_RX_DESC_BW(rxdesc)						       \
 	(le32_get_bits(*((__le32 *)(rxdesc) + 0x04), GENMASK(5, 4)))
 
+/* RCR has BIT_APP_FCS set, so pkt_len includes a trailing 4-byte FCS. */
+#define URTWM_FCS_LEN 4
+
 static int setup_rx(struct urtwm_softc *sc);
 
 /*
@@ -26443,9 +26446,10 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 		 * Same bounds-check reasoning as before: pkt_len is a raw
 		 * 14-bit field (max 16383), m only ever gets one MCLBYTES
 		 * cluster, and skb_len must not run past what this xfer
-		 * actually delivered.
+		 * actually delivered. pkt_len must also be more than just
+		 * the trailing FCS (see below).
 		 */
-		if (pkt_len == 0 || pkt_len > MCLBYTES ||
+		if (pkt_len <= URTWM_FCS_LEN || pkt_len > MCLBYTES ||
 		    (uint32_t)(bufend - rx_desc) < skb_len) {
 			printf("%s: bogus pkt_len=%u pkt_offset=%u at "
 			    "offset %ld, stopping\n", __func__, pkt_len,
@@ -26457,6 +26461,24 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 		wh = (struct ieee80211_frame *)(rx_desc + pkt_offset);
 
 		if (!is_c2h) {
+			/*
+			 * XXX: RCR has BIT_APP_FCS set (matches Linux's
+			 * rtw88, which sets ieee80211_hw_set(hw,
+			 * RX_INCLUDES_FCS) so mac80211 strips it
+			 * automatically) -- pkt_len includes a trailing
+			 * 4-byte FCS that isn't part of the actual frame.
+			 * Confirmed directly: a real 802.11 ACK frame is
+			 * exactly 10 bytes (2+2+6) but we were seeing
+			 * pkt_len=14 for one. Left unstripped, those 4 extra
+			 * bytes get included in the CCMP MIC computation
+			 * during software decrypt, which fails it silently
+			 * for every encrypted data frame -- while unencrypted
+			 * management frames tolerate the trailing garbage
+			 * fine, which is why AUTH/ASSOC/EAPOL all worked
+			 * despite this.
+			 */
+			pkt_len -= URTWM_FCS_LEN;
+
 			MGETHDR(m, M_DONTWAIT, MT_DATA);
 			if (__predict_false(m == NULL)) {
 				printf("%s: m is NULL\n", __func__);
