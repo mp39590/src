@@ -26369,7 +26369,7 @@ void
 urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
     usbd_status status)
 {
-	printf("%s: RX status=%d\n", __func__, status);
+//	printf("%s: RX status=%d\n", __func__, status);
 
 	struct mbuf_list ml = MBUF_LIST_INITIALIZER();
 	struct urtwm_rx_data *data = priv;
@@ -27116,7 +27116,7 @@ urtwm_task(void *arg)
 		s = splusb();
 		ring->queued--;
 		ring->next = (ring->next + 1) % URTWM_HOST_CMD_RING_COUNT;
-		printf("%s: ring->next=%i\n", __func__, ring->next);
+//		printf("%s: ring->next=%i\n", __func__, ring->next);
 	}
 	splx(s);
 }
@@ -28948,7 +28948,7 @@ setup_rx(struct urtwm_softc *sc)
 	    USBD_SHORT_XFER_OK | USBD_NO_COPY, USBD_NO_TIMEOUT /*timeout*/,
 	    urtwm_rxeof);
 	error = usbd_transfer(xfer);
-	printf("%s: rx xfer error=%i\n", __func__, error);
+//	printf("%s: rx xfer error=%i\n", __func__, error);
 
 	return 0;
 }
