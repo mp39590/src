@@ -26396,6 +26396,7 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 	}
 
 	usbd_get_xfer_status(xfer, NULL, NULL, &len, NULL);
+	printf("%s: #%u actual xfer len=%u\n", __func__, rxcount, len);
 
 	/*
 	 * XXX: rtw88's rtw_usb_rx_handler() (Linux) packs multiple 802.11
@@ -26456,9 +26457,20 @@ urtwm_rxeof(struct usbd_xfer *xfer, void *priv,
 			m->m_pkthdr.len = m->m_len = pkt_len;
 
 			printf("%s: pkt#%d pkt_len=%u drv_info_sz=%u "
-			    "shift=%u pkt_offset=%u fc0=0x%02x fc1=0x%02x\n",
+			    "shift=%u pkt_offset=%u fc0=0x%02x fc1=0x%02x "
+			    "crc_err=%d icv_err=%d\n",
 			    __func__, npkts, pkt_len, drv_info_sz, shift,
-			    pkt_offset, wh->i_fc[0], wh->i_fc[1]);
+			    pkt_offset, wh->i_fc[0], wh->i_fc[1],
+			    GET_RX_DESC_CRC32(rx_desc),
+			    GET_RX_DESC_ICV_ERR(rx_desc));
+			/* ether_sprintf() has one static buffer -- can't
+			 * combine multiple calls in a single printf(). */
+			printf("%s: pkt#%d a1=%s\n", __func__, npkts,
+			    ether_sprintf(wh->i_addr1));
+			printf("%s: pkt#%d a2=%s\n", __func__, npkts,
+			    ether_sprintf(wh->i_addr2));
+			printf("%s: pkt#%d a3=%s\n", __func__, npkts,
+			    ether_sprintf(wh->i_addr3));
 
 			ni = ieee80211_find_rxnode(ic, wh);
 			memset(&rxi, 0, sizeof(rxi));
@@ -26476,6 +26488,9 @@ next:
 		rx_desc += next_pkt;
 	}
 	splx(s);
+
+	printf("%s: #%u found %d packet(s) in this xfer (len=%u)\n",
+	    __func__, rxcount, npkts, len);
 
 	if_input(&ic->ic_if, &ml);
 
