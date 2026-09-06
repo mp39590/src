@@ -32235,6 +32235,21 @@ urtwm_media_change(struct ifnet *ifp)
 	return (error);
 }
 
+void
+urtwm_watchdog(struct ifnet *ifp)
+{
+	/*
+	 * XXX: this was never wired up (if_watchdog left NULL), so
+	 * ic_mgt_timer never got serviced: net80211 sets it on every
+	 * AUTH/ASSOC frame it sends expecting a timed reply, but without
+	 * ieee80211_watchdog() ticking it down there is no timeout, no
+	 * retry, and no fallback to SCAN if the AP never answers -- we'd
+	 * just wait at AUTH forever with zero diagnostic output.
+	 */
+	ifp->if_timer = 0;
+	ieee80211_watchdog(ifp);
+}
+
 static const uint8_t rtw_channels[] = {
 	/* 2.4 GHz */
 	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
@@ -32364,7 +32379,7 @@ urtwm_attach(struct device *parent, struct device *self, void *aux)
 	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
 	ifp->if_ioctl = urtwm_ioctl;
 	ifp->if_start = urtwm_start;
-//	ifp->if_watchdog = rtwn_watchdog;
+	ifp->if_watchdog = urtwm_watchdog;
 	memcpy(ifp->if_xname, sc->sc_pdev.dv_xname, IFNAMSIZ);
 	if_attach(ifp);
 
