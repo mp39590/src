@@ -26486,16 +26486,16 @@ urtwm_txeof(struct usbd_xfer *xfer, void *priv,
 //	struct ifnet *ifp = &sc->sc_ic.ic_if;
 //	int s;
 //
-//	s = splnet();
+	s = splnet();
 	if (status != USBD_NORMAL_COMPLETION)
 		printf("%s: TX status=%d\n", __func__, status);
 //
-//	/* We just released a Tx buffer, notify Tx. */
-//	if (ifq_is_oactive(&ifp->if_snd)) {
-//		ifq_clr_oactive(&ifp->if_snd);
-//		urtwm_start(ifp);
-//	}
-//	splx(s);
+	/* We just released a Tx buffer, notify Tx. */
+	if (ifq_is_oactive(&ifp->if_snd)) {
+		ifq_clr_oactive(&ifp->if_snd);
+		urtwm_start(ifp);
+	}
+	splx(s);
 }
 //static int rtw_usb_write_port(struct rtw_dev *rtwdev, u8 qsel, struct sk_buff *skb,
 //                              usb_complete_t cb, void *context)
@@ -32008,25 +32008,29 @@ urtwm_start(struct ifnet *ifp)
 	struct mbuf *m;
 
 	/* Send pending management frames first. */
-	m = mq_dequeue(&ic->ic_mgtq);
-	if (m != NULL) {
-		ni = m->m_pkthdr.ph_cookie;
-	} else {
-		printf("%s: m is NULL\n", __func__);
-		return;
+	for (;;) {
+		m = mq_dequeue(&ic->ic_mgtq);
+		if (m != NULL) {
+			ni = m->m_pkthdr.ph_cookie;
+			goto sendit;
+		} else {
+			printf("%s: m is NULL\n", __func__);
+			return;
+		}
+
+
+
+		m = ifq_dequeue(&ifp->if_snd);
+		if (m == NULL) {
+			printf("%s: m is NULL\n", __func__);
+			return;
+		}
+		if ((m = ieee80211_encap(ifp, m, &ni)) == NULL)
+			continue;
+sendit:
+		ieee80211_dump_pkt(mtod(m, uint8_t *), m->m_pkthdr.len, 0, 0);
+		rtw_tx(rtwdev, m);
 	}
-
-	ieee80211_dump_pkt(mtod(m, uint8_t *), m->m_pkthdr.len, 0, 0);
-
-	rtw_tx(rtwdev, m);
-
-//	m = ifq_dequeue(&ifp->if_snd);
-//	if (m == NULL) {
-//		printf("%s: m is NULL\n", __func__);
-//		return;
-//	}
-//	if ((m = ieee80211_encap(ifp, m, &ni)) == NULL)
-//		continue;
 }
 
 int
