@@ -29625,6 +29625,17 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 	rtwdev->hal.rcr = BIT_APP_FCS | BIT_APP_MIC | BIT_APP_ICV |
 	    BIT_PKTCTL_DLEN | BIT_HTC_LOC_CTRL | BIT_APP_PHYSTS |
 	    BIT_AB | BIT_AM | BIT_APM;
+	/*
+	 * XXX DIAGNOSTIC: every frame ever successfully RXed so far has
+	 * been broadcast (beacons/probe-reqs) -- never a unicast-to-us
+	 * frame. BIT_APM above is supposed to accept those (matched
+	 * against the MACID register rtw_ops_add_interface() programs),
+	 * but that path has zero confirmed evidence it actually works.
+	 * BIT_AAP forces full promiscuous (bypass address match) to test
+	 * whether the missing AUTH response is an RX-filter problem or
+	 * not. Revert this once that's answered either way.
+	 */
+	rtwdev->hal.rcr |= BIT_AAP;
 //
 //        ret = rtw_load_firmware(rtwdev, RTW_NORMAL_FW);
 //        if (ret) {
